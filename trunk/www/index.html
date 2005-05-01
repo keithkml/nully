@@ -1,45 +1,134 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html>
 <head>
-<title>Project Home Page</title>
-<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
-</head>
+  <title>Nully</title>
+  <style type="text/css">
+.nully-comment {
+  font-style: italic; 
+}
 
-<body bgcolor="#FFFFFF" text="#000000">
-<h1>Default project home page </h1>
-<p>Congratulations on your new java.net project! </p>
-<p>This page is the home page for your new project. This content is appearing 
-  because you have selected the option <b>Use project index.html</b>. To edit 
-  the information displayed on this page, just use CVS to check out your project's 
-  CVS repository and edit index.html in directory www. You can get more information 
-  on how to set-up your local CVS client, click on <b>Version Control</b> on the 
-  left nav bar. </p>
-<p>If you don't want to use CVS to manage your home page, click on the <b>Edit 
-  project</b> link on this page and unclick the option <b>Use project index.html</b>. 
-  Your project home page contents will be generated from the <b>Edit project</b> 
-  field <b>Description</b>. Edit the text on that field to change your home page 
-  contents. Click on <b>Submit changes</b> to save your edits. </p>
-<p>If you are looking for <a href="https://java-net.dev.java.net/ProjectPages.html#templates">sample 
-  home page templates</a>, check out the <a href="https://java-net.dev.java.net/ProjectPages.html">java.net 
-  Project Starter Kit</a>. Copy either of the templates into your project's html 
-  to get started on your project's home page. </p>
-<p>You can find lots of helpful information in the Starter Kit to get your project 
-  started. Some of the things you will find in there include:</p>
+.nully-correct {
+color: darkgreen;
+}
+
+.nully-incorrect {
+color: darkred;
+}
+
+.nully-error {
+/*color: red;*/
+border-bottom: 2px dotted #fc0;
+}
+
+pre.nully-code { 
+  font-family: monospace;
+  font-size: 8.5pt;
+
+  margin-left: 3em;
+  margin-right: 3em;
+  padding: 1em;
+
+  background-color: #ffd;
+
+  border: 1px solid black;
+  border-width: 1px 2px 2px 1px;
+}
+  </style>
+</head>
+<body>
+<h4>Introduction</h4>
+Nully
+is a tool which provides automated edit-time, compile-time, and
+run-time checks for <span style="font-style: italic;">illegal</span>
+null
+values, utilizing Java 5 annotations. Nully has four main goals:<br>
 <ul>
-  <li>Hints on how to <a href="https://java-net.dev.java.net/ProjectPages.html#pages">set-up 
-    your project's</a> home page</li>
-  <li>Ideas on how to <a href="https://java-net.dev.java.net/ProjectPages.html#publicity">publicize 
-    your project</a> including RSS feeds</li>
-  <li>Hints on <a href="https://java-net.dev.java.net/pagedesign.html">project 
-    page HTML</a></li>
-  <li>Setting up project <a href="https://java-net.dev.java.net/ProjectPages.html#wiki">wiki 
-    pages</a></li>
-  <li>And places to go if <a href="https://java-net.dev.java.net/ProjectPages.html#feedback">you 
-    have questions</a>.</li>
+  <li><strong>Ease
+of use.</strong> Specifying where
+nulls are not allowed is as simple as typing <code>@NonNull</code>
+before the variable or method you want to protect.</li>
+  <li><strong>Security.</strong>
+Null values are prevented at run-time using generated null checks in
+your compiled code. Your code can safely assume that any values marked
+as <code>@NonNull</code>
+will not be <code>null</code>,
+including local variables, parameters, and returned values from <code>@NonNull</code>
+methods.<br>
+  </li>
+  <li><strong>Documentation.</strong>
+Users of your classes know immediately where null values are and are
+not allowed, just by looking at the method signature or Javadoc.</li>
+  <li><strong>Comprehension.</strong>
+In-editor illegal null highlighting and compile-time warnings make sure
+you understand what your code is doing.<br>
+  </li>
 </ul>
-<p>Remember that you will attract more new members and your project team will 
-  work more effectively if you, as the project owner, supply sufficient information 
-  about your project for visitors to your project space. Good luck with your new 
-  project! </p>
+<h4>Usage<br>
+</h4>
+Nully provides an annotation called <code>@NonNull</code>
+which can be applied to method parameters, variables, and return
+values, as in the following example:
+<pre>@NonNull String someMethod(@NonNull String param) {<br>    @NonNull String other = "";<br>    return other;<br>}<br></pre>
+<ul>
+  <li><strong>Method
+parameters.</strong> A <code>@NonNull</code>
+parameter cannot be passed <code>null</code>.
+An exception will be thrown at runtime if a method passes your method a
+    <code>null</code>
+for a <code>@NonNull</code>
+parameter, and a warning will be shown if you try to pass <code>null</code>
+to such a parameter.
+    <pre class="nully-code">void takeString(@NonNull String value) {<br>  <span
+ class="nully-comment">// code can assume value is not null</span><br> }<br><br>void myMethod() {<br>  <span
+ class="nully-comment nully-correct">// CORRECT</span><br>  takeString("hi");<br><br>  <span
+ class="nully-comment nully-correct">// CORRECT</span><br>  StringBuffer buf = ...;<br>  takeString(new String(buf));<br><br>  <span
+ class="nully-comment nully-incorrect">// INCORRECT - getProperty may return null</span><br>  String str = System.getProperty("someProp");<br>  takeString(<span
+ class="nully-error" title="Value passed to takeString() may be null">str</span>);<br>}</pre>
+  </li>
+  <li><strong>Local
+variables.</strong> You cannot
+assign a <code>null</code>
+value to a <code>@NonNull</code>
+variable. Any attempt to store a (possibly)
+null value will produce a warning at edit- and compile-time, and will
+throw an exception at runtime.
+    <pre class="nully-code">List someListMethod() { return ...; }<br>void method() {<br>  @NonNull List s;<br>  // CORRECT<br>  s = new ArrayList();<br><br>  // CORRECT<br>  List other = new ArrayList();<br>  s = other;<br><br>  // INCORRECT<br>  s = <span
+ class="nully-error" title="Value assigned to s may be null">someListMethod()</span>;<br>}<br></pre>
+  </li>
+  <li><strong>Method
+return values. </strong>
+When <code>@NonNull</code>
+is specified for a method, it means any attempt to return a (possibly)
+null value within that method will produce a warning at edit- and
+compile-time, and will throw an exception at runtime. Values returned
+from <code>@NonNull</code>
+methods are guaranteed to be non-null due to generated run-time checks
+in your code.
+    <pre class="nully-code">@NonNull Object something() {<br>  <span
+ class="nully-comment nully-correct">// CORRECT</span><br>  return "Constant";<br><br>  <span
+ class="nully-comment nully-correct">// CORRECT</span><br>  return new ArrayList();<br><br>  <span
+ class="nully-comment nully-incorrect">// INCORRECT - getProperty may return null</span><br>  return <span
+ class="nully-error" title="Returned value may be null">System.getProperty("someProp")</span>;<br><br>  <span
+ class="nully-comment nully-incorrect"
+ title="Returned value may be null">// INCORRECT - value may be null</span><br>  String value = null;<br>  if (something) value = "hello";<br>  return <span
+ class="nully-error">value</span>;<br>}<br><br><br>void somethingUser() {<br>  <span
+ class="nully-comment nully-correct">// CORRECT - something() guaranteed not to return null</span><br>  @NonNull Object thing = something();<br>}</pre>
+  </li>
+</ul>
+<h4>Installation</h4>
+Nully is implemented as a plugin for the IntelliJ IDEA development
+environment for Java. It cannot currently be used in any way outside
+IDEA because of its heavy dependence on IDEA's Java source tree
+framework.<br>
+<br>
+To install Nully, simply open IntelliJ IDEA and open
+File&rarr;Settings. Click Plugins, then click Available. Find Nully in
+the available plugins list and click the Install button in the toolbar
+to install Nully.<br>
+<br>
+To use Nully annotations in your project, you must include a small JAR
+file in your application. This file is located in the <a
+ href="https://nully.dev.java.net/servlets/ProjectDocumentList?folderID=3225&amp;expandFolder=3225&amp;folderID=3225">Current
+Release section</a> of this project's file releases.<br>
 </body>
 </html>
-
