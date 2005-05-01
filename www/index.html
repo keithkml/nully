@@ -26,8 +26,11 @@ font-weight: bold;
 color: #506;
 }
 
-pre.nully-code { 
+code, pre {
   font-family: monospace;
+}
+
+pre.nully-code { 
   font-size: 8.5pt;
 
   margin-left: 3em;
@@ -95,7 +98,7 @@ to such a parameter.
     <pre class="nully-code">void takeString(<span class="nully-anno">@NonNull</span> String value) {
   <span
  class="nully-comment">// code can assume value is not null</span>
- }
+}
 
 void myMethod() {
   <span
