@@ -37,12 +37,14 @@ pre.nully-code {
 </head>
 <body>
 <h4>Introduction</h4>
-<img alt="" src="images/demo.png"
- style="border: 2px solid black; float: right; width: 518px; height: 123px;">Nully
+Nully
 is a tool which provides automated edit-time, compile-time, and
 run-time checks for <span style="font-style: italic;">illegal</span>
 null
-values, utilizing Java 5 annotations. Nully has four main goals:<br>
+values, utilizing Java 5 annotations.
+<p style="text-align: center;"><img alt="" src="images/demo.png"
+ style="width: 518px; height: 123px;"></p>
+<p>Nully has four main goals:</p>
 <ul>
   <li><strong>Ease
 of use.</strong> Specifying where
@@ -64,11 +66,13 @@ In-editor illegal null highlighting and compile-time warnings make sure
 you understand what your code is doing.<br>
   </li>
 </ul>
-<h4>Usage<br>
+<h4>Usage
 </h4>
+<p>
 Nully provides an annotation called <code>@NonNull</code>
 which can be applied to method parameters, variables, and return
 values, as in the following example:
+</p>
 <pre>@NonNull String someMethod(@NonNull String param) {<br>    @NonNull String other = "";<br>    return other;<br>}<br></pre>
 <ul>
   <li><strong>Method
@@ -117,21 +121,21 @@ in your code.
   </li>
 </ul>
 <h4>Installation</h4>
-Nully is implemented as a plugin for the IntelliJ IDEA development
+<p>Nully is implemented as a
+plugin for the IntelliJ IDEA development
 environment for Java. It cannot currently be used in any way outside
 IDEA because of its heavy dependence on IDEA's Java source tree
-framework.<br>
-<br>
-To install Nully, simply open IntelliJ IDEA and open
+framework.</p>
+<p>To install Nully, simply open
+IntelliJ IDEA and open
 File&rarr;Settings. Click Plugins, then click Available. Find Nully
 in the available plugins list and click the Install button in the
-toolbar to install Nully.<br>
-<br>
-To use Nully annotations in your project, you must include a small JAR
+toolbar to install Nully.</p>
+<p>To use Nully annotations in
+your project, you must include a small JAR
 file in your application. This file is located in the <a
  href="https://nully.dev.java.net/servlets/ProjectDocumentList?folderID=3225&amp;expandFolder=3225&amp;folderID=3225">Current
 Release section</a> of this
-project's file releases.<br>
-<br>
+project's file releases.</p>
 </body>
 </html>
