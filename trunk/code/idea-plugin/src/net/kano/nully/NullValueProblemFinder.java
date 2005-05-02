@@ -46,6 +46,7 @@ import com.intellij.psi.PsiModifierList;
 import com.intellij.psi.PsiParameter;
 import com.intellij.psi.PsiReturnStatement;
 import com.intellij.psi.PsiVariable;
+import com.intellij.psi.PsiClass;
 import com.intellij.psi.util.PsiTreeUtil;
 import static net.kano.nully.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
 import static net.kano.nully.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
@@ -64,51 +65,50 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-public class ProblemPsiTagger {
+public class NullValueProblemFinder implements ProblemFinder {
     private MethodInfo info = null;
     private List<PsiNullProblem> problems = null;
 
-    public List<PsiNullProblem> highlightProblems(MethodInfo info) {
+    public synchronized List<PsiNullProblem> findProblems(MethodInfo info) {
         this.info = info;
-        problems = new ArrayList<PsiNullProblem>();
+        this.problems = new ArrayList<PsiNullProblem>();
         for (SootMethod method : info.getSootMethods()) {
             PsiMethod psiMethod = NullyTools.getPsiMethod(info, method);
             if (psiMethod == null) continue;
-            highlightProblemsForMethod(method.retrieveActiveBody(),
+            tagProblemsForMethod(method.retrieveActiveBody(),
                     psiMethod);
         }
         return problems;
     }
 
-    private void highlightProblemsForMethod(Body body, PsiMethod method) {
+    private void tagProblemsForMethod(Body body, PsiMethod method) {
         for (Unit unit : (Collection<Unit>)body.getUnits()) {
             if (unit instanceof AssignStmt) {
                 AssignStmt assignStmt = (AssignStmt) unit;
                 ValueBox rightBox = assignStmt.getRightOpBox();
                 if (rightBox.hasTag("MayBeNull")) {
-                    highlightNullAssignments(assignStmt);
+                    findNullAssignments(assignStmt);
                 }
 
                 if (rightBox.getValue() instanceof InvokeExpr) {
-                    highlightNullArgs(rightBox);
+                    findNullArgs(rightBox);
                 }
             } else if (unit instanceof ReturnStmt) {
-                highlightNullReturn((ReturnStmt) unit, method);
+                tagNullReturn((ReturnStmt) unit, method);
 
             } else if (unit instanceof InvokeStmt) {
                 InvokeStmt invokeStmt = (InvokeStmt) unit;
-                highlightNullArgs(invokeStmt);
+                findNullArgs(invokeStmt);
             }
         }
     }
 
-    private void highlightNullReturn(ReturnStmt retStmt, PsiMethod methodCopy) {
+    private void tagNullReturn(ReturnStmt retStmt, PsiMethod methodCopy) {
         ValueBox retBox = retStmt.getOpBox();
         if (!retBox.hasTag("MayBeNull")) return;
 
         PsiMethod method = NullyTools.getOriginalElement(methodCopy);
-        PsiModifierList mods = method.getModifierList();
-        if (mods.findAnnotation(NullyTools.ANNO_NONNULL) == null) return;
+        if (!NullyTools.hasNonNullAnnotation(method)) return;
 
         SourceLnPosTag srcTag = NullyTools.getSourceTag(retBox);
         if (srcTag == null) return;
@@ -126,23 +126,22 @@ public class ProblemPsiTagger {
         problems.add(new PsiNullProblem(NULL_RETURN_IN_NONNULL_METHOD, retVal));
     }
 
-    private void highlightNullArgs(InvokeStmt invokeStmt) {
+    private void findNullArgs(InvokeStmt invokeStmt) {
         SourceLnPosTag tag = NullyTools.getSourceTag(invokeStmt);
         if (tag == null) return;
 
-        highlightNullArgs(invokeStmt.getInvokeExpr(), tag);
+        findNullArgs(invokeStmt.getInvokeExpr(), tag);
     }
 
-    private void highlightNullArgs(ValueBox invokeBox) {
+    private void findNullArgs(ValueBox invokeBox) {
         InvokeExpr invokeExpr = (InvokeExpr) invokeBox.getValue();
         SourceLnPosTag srcTag = NullyTools.getSourceTag(invokeBox);
         if (srcTag == null) return;
 
-        highlightNullArgs(invokeExpr, srcTag);
+        findNullArgs(invokeExpr, srcTag);
     }
 
-    private void highlightNullArgs(InvokeExpr invokeExpr,
-                                                        SourceLnPosTag srcTag) {
+    private void findNullArgs(InvokeExpr invokeExpr, SourceLnPosTag srcTag) {
         OffsetsTracker tracker = info.getTracker();
         int offset = tracker.getOffset(srcTag.startLn(), srcTag.startPos());
 
@@ -179,7 +178,7 @@ public class ProblemPsiTagger {
         for (int i = 0; i < params.length; i++) {
             PsiParameter param = params[i];
             ValueBox argBox = invokeExpr.getArgBox(i);
-            if (param.getModifierList().findAnnotation(NullyTools.ANNO_NONNULL) != null
+            if (NullyTools.hasNonNullAnnotation(param)
                         && argBox.hasTag("MayBeNull")) {
                 // we found a possibly null argument for nonnull parameter
                 SourceLnPosTag argSrcTag = NullyTools.getSourceTag(argBox);
@@ -218,7 +217,7 @@ public class ProblemPsiTagger {
         return argel;
     }
 
-    private void highlightNullAssignments(AssignStmt assignStmt) {
+    private void findNullAssignments(AssignStmt assignStmt) {
         ValueBox rightBox = assignStmt.getRightOpBox();
         ValueBox varBox = assignStmt.getLeftOpBox();
         SourceLnPosTag srcTag = NullyTools.getSourceTag(varBox);
@@ -230,11 +229,8 @@ public class ProblemPsiTagger {
         int offset = tracker.getOffset(srcTag.startLn(), srcTag.startPos());
         PsiElement leftEl = fileCopy.findElementAt(offset);
         PsiVariable variable = NullyTools.getReferencedVariable(leftEl);
-        PsiVariable origVariable = (PsiVariable) NullyTools.getOriginalElement(variable);
-        PsiModifierList mods = origVariable.getModifierList();
-        PsiAnnotation anno = mods.findAnnotation(NullyTools.ANNO_NONNULL);
-
-        if (anno == null) return;
+        PsiVariable origVariable = NullyTools.getOriginalElement(variable);
+        if (!NullyTools.hasNonNullAnnotation(origVariable)) return;
 
         SourceLnPosTag tag = NullyTools.getSourceTag(rightBox);
         int roff = tracker.getOffset(tag.startLn(), tag.startPos());

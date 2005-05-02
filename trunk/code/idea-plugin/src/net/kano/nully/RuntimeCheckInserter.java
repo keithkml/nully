@@ -167,8 +167,8 @@ public class RuntimeCheckInserter implements JavaSourceTransformingCompiler {
         preparer.stripJava5Code(info.getFileCopy());
         MethodAnalyzer analyzer = new MethodAnalyzer();
         analyzer.analyze(info);
-        ProblemPsiTagger tagger = new ProblemPsiTagger();
-        List<PsiNullProblem> problems = tagger.highlightProblems(info);
+        ProblemFinder finder = new NullValueProblemFinder();
+        List<PsiNullProblem> problems = finder.findProblems(info);
         for (PsiNullProblem problem : problems) {
             PsiElement el = problem.getElement();
             String oldText = el.getText();
@@ -290,23 +290,21 @@ public class RuntimeCheckInserter implements JavaSourceTransformingCompiler {
         PsiElement addAfter = body.getLBrace();
         for (int pi = 0; pi < params.length; pi++) {
             PsiParameter param = params[pi];
-            PsiModifierList mods = param.getModifierList();
-            PsiAnnotation anno = mods.findAnnotation(NullyTools.ANNO_NONNULL);
-            if (anno != null) {
-                PsiElement el = factory.createStatementFromText(
-                        makeParamCheckString(param, pi), body);
-                body.addAfter(el, addAfter);
-                for (int i = 0; i < 1000; i++) {
-                    PsiElement nextSibling = el.getNextSibling();
-                    if (nextSibling instanceof PsiWhiteSpace) {
-                        nextSibling.delete();
-                    } else {
-                        break;
-                    }
+            if (!NullyTools.hasNonNullAnnotation(param)) continue;
+            
+            PsiElement el = factory.createStatementFromText(
+                    makeParamCheckString(param, pi), body);
+            body.addAfter(el, addAfter);
+            for (int i = 0; i < 1000; i++) {
+                PsiElement nextSibling = el.getNextSibling();
+                if (nextSibling instanceof PsiWhiteSpace) {
+                    nextSibling.delete();
+                } else {
+                    break;
                 }
-
-                addAfter = el;
             }
+
+            addAfter = el;
         }
     }
 

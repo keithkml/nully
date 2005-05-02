@@ -33,9 +33,32 @@
 
 package net.kano.nully;
 
-public enum NullProblemType {
-    NULL_ASSIGNMENT_TO_NONNULL_VARIABLE,
-    NULL_RETURN_IN_NONNULL_METHOD,
-    NULL_ARGUMENT_FOR_NONNULL_PARAMETER,
-    INVALID_NONNULL_OVERRIDE
+import com.intellij.psi.PsiClass;
+import com.intellij.psi.PsiMethod;
+import static com.intellij.psi.util.PsiSuperMethodUtil.findSuperMethods;
+import static net.kano.nully.NullProblemType.INVALID_NONNULL_OVERRIDE;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class OtherProblemFinder implements ProblemFinder {
+    public List<PsiNullProblem> findProblems(MethodInfo info) {
+        List<PsiNullProblem> problems = new ArrayList<PsiNullProblem>();
+        for (PsiClass cls : info.getFileCopy().getClasses()) {
+
+            ClassMethods:
+            for (PsiMethod method : cls.getMethods()) {
+                if (NullyTools.hasNonNullAnnotation(method)) continue;
+                if (method.isConstructor()) continue;
+
+                for (PsiMethod superm : findSuperMethods(method, true)) {
+                    if (NullyTools.hasNonNullAnnotation(superm)) {
+                        problems.add(new PsiNullProblem(INVALID_NONNULL_OVERRIDE, method));
+                        break ClassMethods;
+                    }
+                }
+            }
+        }
+        return problems;
+    }
 }

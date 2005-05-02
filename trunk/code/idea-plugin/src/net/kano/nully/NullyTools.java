@@ -11,6 +11,9 @@ import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiAssignmentExpression;
 import com.intellij.psi.PsiReferenceExpression;
 import com.intellij.psi.PsiMethodCallExpression;
+import com.intellij.psi.PsiModifierListOwner;
+import com.intellij.psi.PsiModifierList;
+import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.util.PsiTreeUtil;
 import soot.ValueBox;
 import soot.SootMethod;
@@ -133,5 +136,11 @@ public final class NullyTools {
                 PsiMethodCallExpression.class);
         PsiMethod method = (PsiMethod) methCallExp.getMethodExpression().resolve();
         return method;
+    }
+
+    public static boolean hasNonNullAnnotation(PsiModifierListOwner owner) {
+        PsiModifierList mods = owner.getModifierList();
+        PsiAnnotation anno = mods.findAnnotation(NullyTools.ANNO_NONNULL);
+        return anno != null;
     }
 }

@@ -33,9 +33,30 @@
 
 package net.kano.nully;
 
-public enum NullProblemType {
-    NULL_ASSIGNMENT_TO_NONNULL_VARIABLE,
-    NULL_RETURN_IN_NONNULL_METHOD,
-    NULL_ARGUMENT_FOR_NONNULL_PARAMETER,
-    INVALID_NONNULL_OVERRIDE
+import com.intellij.codeInspection.LocalQuickFix;
+import com.intellij.codeInspection.ProblemDescriptor;
+import com.intellij.openapi.project.Project;
+import com.intellij.psi.PsiMethod;
+import com.intellij.psi.PsiModifierList;
+import com.intellij.psi.PsiElementFactory;
+import com.intellij.psi.codeStyle.CodeStyleManager;
+import com.intellij.util.IncorrectOperationException;
+
+class AddNonNullDeclarationFix implements LocalQuickFix {
+    public String getName() {
+        return "Make method @NonNull";
+    }
+
+    public void applyFix(Project project, ProblemDescriptor descriptor) {
+        PsiMethod method = (PsiMethod) descriptor.getPsiElement();
+        PsiModifierList mods = method.getModifierList();
+        PsiElementFactory factory = method.getManager().getElementFactory();
+        try {
+            mods.add(factory.createAnnotationFromText(
+                    "@"+ NullyTools.ANNO_NONNULL, mods));
+            CodeStyleManager.getInstance(project).reformat(mods);
+        } catch (IncorrectOperationException e) {
+            e.printStackTrace();
+        }
+    }
 }
