@@ -1,0 +1,14 @@
+<project default="compile">
+  <target name="compile"/>
+
+  <path id="retropath">
+    <path path="..\Libraries\retroweaver\release\retroweaver.jar" />
+    <fileset dir="..\Libraries\retroweaver\lib" includes="*.jar" />
+  </path>
+
+  <target name="retroweave">
+    <taskdef name="retroweave" classpathref="retropath"
+             classname="com.rc.retroweaver.ant.RetroWeaverTask" />
+    <retroweave srcdir="classes"/>
+  </target>
+</project>

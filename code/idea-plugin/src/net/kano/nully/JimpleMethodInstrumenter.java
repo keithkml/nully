@@ -33,13 +33,11 @@
 
 package net.kano.nully;
 
-import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiExpression;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiMethodCallExpression;
-import com.intellij.psi.PsiModifierList;
 import com.intellij.psi.PsiParameter;
 import com.intellij.psi.PsiParameterList;
 import com.intellij.psi.PsiVariable;
@@ -205,11 +203,9 @@ public class JimpleMethodInstrumenter {
             }
 
             PsiMethod referencedMethod = (PsiMethod) call.getMethodExpression().resolve();
-            PsiMethod referencedMethodOrig = (PsiMethod) NullyTools.getOriginalElement(referencedMethod);
+            PsiMethod referencedMethodOrig = NullyTools.getOriginalElement(referencedMethod);
             if (referencedMethodOrig != null) referencedMethod = referencedMethodOrig;
-            PsiModifierList mods = referencedMethod.getModifierList();
-            PsiAnnotation anno = mods.findAnnotation(NullyTools.ANNO_NONNULL);
-            if (anno != null) {
+            if (NullyTools.hasNonNullAnnotation(referencedMethod)) {
                 if (addUnexpectedNullCheck(assignStmt, true, body)) {
                     System.out.println("I fixed method call to "
                             + referencedMethod.getContainingClass().getQualifiedName()
@@ -224,9 +220,8 @@ public class JimpleMethodInstrumenter {
             PsiParameterList parameterList = method.getParameterList();
             int paramIndex = ref.getIndex();
             PsiParameter paramCopy = parameterList.getParameters()[paramIndex];
-            PsiParameter param = (PsiParameter) NullyTools.getOriginalElement(paramCopy);
-            PsiAnnotation anno = param.getModifierList().findAnnotation(NullyTools.ANNO_NONNULL);
-            if (anno != null) {
+            PsiParameter param = NullyTools.getOriginalElement(paramCopy);
+            if (NullyTools.hasNonNullAnnotation(param)) {
                 //TODO: make sure the new exception code works, and inserts before/after correctly for this and for STEP2
                 Type[] types = { RefType.v("java.lang.String"), IntType.v() };
                 Value[] values = { StringConstant.v(param.getName()),
@@ -244,10 +239,8 @@ public class JimpleMethodInstrumenter {
         // STEP 2 - add null checks if assignment to @NonNull variable
         PsiElement varEl = tracker.getElementAtPosition(fileCopy, varSrcTag);
         PsiVariable varCopy = NullyTools.getReferencedVariable(varEl);
-        PsiVariable var = (PsiVariable) NullyTools.getOriginalElement(varCopy);
-        PsiModifierList mods = var.getModifierList();
-        PsiAnnotation anno = mods.findAnnotation(NullyTools.ANNO_NONNULL);
-        if (anno != null) {
+        PsiVariable var = NullyTools.getOriginalElement(varCopy);
+        if (NullyTools.hasNonNullAnnotation(var)) {
             if (addUnexpectedNullCheck(assignStmt, false, body)) {
                 System.out.println("I fixed assignment to " + var.getName());
                 return true;
