@@ -1,4 +1,4 @@
-<!DOCTYPE html 
+<!DOCTYPE html
      PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
      "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html>
@@ -6,7 +6,7 @@
 <title>Home</title>
   <style type="text/css">
 .nully-comment {
-  font-style: italic; 
+  font-style: italic;
 }
 
 .nully-correct {
@@ -31,7 +31,7 @@ code, pre {
   font-family: monospace;
 }
 
-pre.nully-code { 
+pre.nully-code {
   font-size: 8.5pt;
 
   margin-left: 3em;
@@ -47,13 +47,15 @@ pre.nully-code {
 </head>
 <body>
 <h4>Introduction</h4>
-Nully
+<p>Nully
 is a tool which provides automated edit-time, compile-time, and
 run-time checks for <span style="font-style: italic;">illegal</span>
 null
-values, utilizing Java 5 annotations.
+values, utilizing Java 5.0 code annotations.</p>
+
 <p style="text-align: center;"><img alt="" src="images/demo.png"
  style="width: 518px; height: 123px;"></p>
+
 <p>Nully has four main goals:</p>
 <ul>
   <li><strong>Ease
@@ -171,7 +173,8 @@ in your code.
   String value = null;
   if (something) value = "hello";
   return <span
- class="nully-error">value</span>;
+ class="nully-error"
+ title="Returned value may be null">value</span>;
 }
 
 void somethingUser() {
@@ -181,17 +184,20 @@ void somethingUser() {
 }</pre>
   </li>
 </ul>
+
 <h4>Installation</h4>
 <p>Nully is implemented as a
 plugin for the IntelliJ IDEA development
 environment for Java. It cannot currently be used in any way outside
 IDEA because of its heavy dependence on IDEA's Java source tree
 framework.</p>
+
 <p>To install Nully, simply open
 IntelliJ IDEA and open
 File&rarr;Settings. Click Plugins, then click Available. Find Nully
 in the available plugins list and click the Install button in the
 toolbar to install Nully.</p>
+
 <p>To use Nully annotations in
 your project, you must include a small JAR
 file in your application. This file is located in the <a
