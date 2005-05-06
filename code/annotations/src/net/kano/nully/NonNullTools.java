@@ -36,21 +36,21 @@ package net.kano.nully;
 public final class NonNullTools {
     private NonNullTools() { }
 
-    public static <E> E checkNonNullParameter(E val, String paramName, int paramIndex) {
+    public static @NonNull <E> E checkNonNullParameter(E val, String paramName, int paramIndex) {
         if (val == null) {
             throw new NullParameterException(paramName, paramIndex);
         }
         return val;
     }
     
-    public static <E> E checkNonNullReturn(E val) {
+    public static @NonNull <E> E checkNonNullReturn(E val) {
         if (val == null) {
             throw new NullReturnException();
         }
         return val;
     }
 
-    public static <E> E checkNonNullValue(E val) {
+    public static @NonNull <E> E checkNonNullValue(E val) {
         if (val == null) {
             throw new UnexpectedNullValueException();
         }

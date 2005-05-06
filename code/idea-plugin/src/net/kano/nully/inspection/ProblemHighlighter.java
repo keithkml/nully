@@ -31,34 +31,47 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.inspection;
 
 import com.intellij.codeInspection.InspectionManager;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
 import static com.intellij.codeInspection.ProblemHighlightType.GENERIC_ERROR_OR_WARNING;
-import com.intellij.psi.PsiClass;
-import com.intellij.psi.PsiClassType;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiVariable;
-import com.intellij.psi.util.PsiSuperMethodUtil;
-import static net.kano.nully.NullProblemType.INVALID_NONNULL_OVERRIDE;
-import static net.kano.nully.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
-import static net.kano.nully.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
-import static net.kano.nully.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
+import com.intellij.openapi.diagnostic.Logger;
+import net.kano.nully.NullyTools;
+import net.kano.nully.NonNull;
+import net.kano.nully.BadOverrideInfo;
+import net.kano.nully.analysis.AnalysisInfo;
+import net.kano.nully.analysis.NullProblemType;
+import static net.kano.nully.analysis.NullProblemType.INVALID_NONNULL_OVERRIDE;
+import static net.kano.nully.analysis.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
+import static net.kano.nully.analysis.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
+import static net.kano.nully.analysis.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
+import net.kano.nully.analysis.NullValueProblemFinder;
+import net.kano.nully.analysis.OtherProblemFinder;
+import net.kano.nully.analysis.ProblemFinder;
+import net.kano.nully.analysis.PsiNullProblem;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 public class ProblemHighlighter {
-    public List<ProblemDescriptor> highlightProblems(MethodInfo info) {
+    private static final Logger LOGGER = Logger.getInstance(ProblemHighlighter.class.getName());
+
+    public List<ProblemDescriptor> highlightProblems(AnalysisInfo info,
+            InspectionManager mgr) {
+        List<PsiNullProblem> psiProblems = new ArrayList<PsiNullProblem>();
+
         ProblemFinder finder = new NullValueProblemFinder();
-        List<PsiNullProblem> psiProblems = finder.findProblems(info);
+        psiProblems.addAll(finder.findProblems(info));
+
+        ProblemFinder otherFinder = new OtherProblemFinder();
+        psiProblems.addAll(otherFinder.findProblems(info));
+
         List<ProblemDescriptor> problems = new ArrayList<ProblemDescriptor>();
-        InspectionManager mgr = info.getInspectionManager();
         for (PsiNullProblem psiProblem : psiProblems) {
             ProblemDescriptor prob = getProblem(mgr, psiProblem);
 
@@ -89,46 +102,23 @@ public class ProblemHighlighter {
             desc = "Returned value may be ilegally null";
 
         } else if (type == INVALID_NONNULL_OVERRIDE) {
-            //TODO: test override inspection & fix; implement for compiler
-            PsiMethod method = (PsiMethod) element;
-            List<PsiMethod> bad = new ArrayList<PsiMethod>();
-            for (PsiMethod superm : PsiSuperMethodUtil.findSuperMethods(method)) {
-                if (NullyTools.hasNonNullAnnotation(superm)) bad.add(superm);
-            }
-            boolean found = false;
-            for (PsiMethod badMethod : bad) {
-                if (!badMethod.getContainingClass().isInterface()) {
-                    // we found the real method
-                    desc = "<HTML>Method illegally overrides @NonNull method "
-                            + getQualifiedMethodName(badMethod)
-                            + " without @NonNull declaration";
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                if (bad.size() == 1) {
-                    desc = "<HTML>Method illegally implements @NonNull method "
-                            + getQualifiedMethodName(bad.get(0))
-                            + " without @NonNull declaration";
-                } else {
-                    Set<PsiClass> badInImplementsList
-                            = getBadClassesInImplementsList(method, bad);
+            BadOverrideInfo info = NullyTools.getBadOverrideInfo(psiProblem);
 
-                    if (!badInImplementsList.isEmpty()) {
-                        // some bad superclass is in the implements list
-                        if (badInImplementsList.size() == 1) {
-                            desc = "<HTML>Method illegally implements @NonNull method "
-                                    + getQualifiedMethodName(bad.get(0))
-                                    + " without @NonNull declaration";
-                        }
-                    }
-                    if (desc == null) {
-                        desc = "<HTML>Method illegally implements @NonNull "
-                                + "methods without @NonNull declaration";
-                    }
-                }
+            String word;
+            BadOverrideInfo.OverrideType overrideType = info.getType();
+            if (overrideType == BadOverrideInfo.OverrideType.OVERRIDES) {
+                word = "overrides";
+            } else if (overrideType == BadOverrideInfo.OverrideType.IMPLEMENTS) {
+                word = "implements";
+            } else {
+                LOGGER.error("Override type was " + overrideType);
+                return null;
             }
+
+            desc = "<HTML>Method illegally " + word + " @"
+                    + NonNull.class.getSimpleName() + " method "
+                    + NullyTools.getQualifiedMemberName(info.getOverridden())
+                    + " without @" + NonNull.class.getSimpleName() + " declaration";
             fix = new AddNonNullDeclarationFix();
         }
 
@@ -138,27 +128,6 @@ public class ProblemHighlighter {
             return mgr.createProblemDescriptor(element, desc, fix,
                     GENERIC_ERROR_OR_WARNING);
         }
-    }
-
-    private static Set<PsiClass> getBadClassesInImplementsList(PsiMethod method,
-            List<PsiMethod> bad) {
-        Set<PsiClass> badSuperclasses = new HashSet<PsiClass>();
-        for (PsiMethod psiMethod : bad) {
-            badSuperclasses.add(psiMethod.getContainingClass());
-        }
-        Set<PsiClass> inImplementsList = new HashSet<PsiClass>();
-
-        for (PsiClassType itype : method.getContainingClass()
-                .getImplementsListTypes()) {
-            inImplementsList.add(itype.resolve());
-        }
-
-        badSuperclasses.retainAll(inImplementsList);
-        return badSuperclasses;
-    }
-
-    private static String getQualifiedMethodName(PsiMethod method) {
-        return method.getContainingClass().getName() + "." + method.getName();
     }
 
 }

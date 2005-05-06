@@ -33,31 +33,16 @@
 
 package net.kano.nully;
 
-import com.intellij.codeInspection.InspectionToolProvider;
-import com.intellij.openapi.components.ApplicationComponent;
-import net.kano.nully.inspection.NullyInspector;
+import java.lang.annotation.Documented;
+import static java.lang.annotation.ElementType.LOCAL_VARIABLE;
+import static java.lang.annotation.ElementType.METHOD;
+import static java.lang.annotation.ElementType.PARAMETER;
+import java.lang.annotation.Retention;
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
+import java.lang.annotation.Target;
 
-public class NullyApplicationComponent implements ApplicationComponent, InspectionToolProvider {
-    //TODO: detect when null check is needed for non-@NonNull parameter
-    //TODO: detect when method only returns non-null
-    //TODO: use custom keys for each AnalysisInfo
-    //TODO: detect @nonnull on primitives
-
-    public String getComponentName() {
-        return "Nully";
-    }
-
-    public void initComponent() {
-//        G.v().out = new PrintStream(new OutputStream() {
-//            public void write(int i) throws IOException {
-//            }
-//        });
-    }
-
-    public void disposeComponent() {
-    }
-
-    public Class[] getInspectionClasses() {
-        return new Class[] { NullyInspector.class };
-    }
+@Documented
+@Retention(RUNTIME)
+@Target({PARAMETER, LOCAL_VARIABLE, METHOD})
+public @interface Nullable {
 }

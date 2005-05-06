@@ -33,30 +33,15 @@
 
 package net.kano.nully;
 
-import com.intellij.codeInspection.LocalQuickFix;
-import com.intellij.codeInspection.ProblemDescriptor;
-import com.intellij.openapi.project.Project;
-import com.intellij.psi.PsiMethod;
-import com.intellij.psi.PsiModifierList;
-import com.intellij.psi.PsiElementFactory;
-import com.intellij.psi.codeStyle.CodeStyleManager;
-import com.intellij.util.IncorrectOperationException;
+import static java.lang.annotation.ElementType.CONSTRUCTOR;
+import static java.lang.annotation.ElementType.METHOD;
+import static java.lang.annotation.ElementType.PACKAGE;
+import static java.lang.annotation.ElementType.TYPE;
+import java.lang.annotation.Retention;
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
+import java.lang.annotation.Target;
 
-class AddNonNullDeclarationFix implements LocalQuickFix {
-    public String getName() {
-        return "Make method @NonNull";
-    }
-
-    public void applyFix(Project project, ProblemDescriptor descriptor) {
-        PsiMethod method = (PsiMethod) descriptor.getPsiElement();
-        PsiModifierList mods = method.getModifierList();
-        PsiElementFactory factory = method.getManager().getElementFactory();
-        try {
-            mods.add(factory.createAnnotationFromText(
-                    "@"+ NullyTools.ANNO_NONNULL, mods));
-            CodeStyleManager.getInstance(project).reformat(mods);
-        } catch (IncorrectOperationException e) {
-            e.printStackTrace();
-        }
-    }
+@Retention(RUNTIME)
+@Target({CONSTRUCTOR, METHOD, TYPE, PACKAGE})
+public @interface SuppressNullChecks {
 }

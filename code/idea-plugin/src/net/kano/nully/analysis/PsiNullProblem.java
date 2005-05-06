@@ -31,34 +31,24 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.analysis;
 
-import com.intellij.psi.PsiClass;
-import com.intellij.psi.PsiMethod;
-import static com.intellij.psi.util.PsiSuperMethodUtil.findSuperMethods;
-import static net.kano.nully.NullProblemType.INVALID_NONNULL_OVERRIDE;
+import com.intellij.psi.PsiElement;
 
-import java.util.ArrayList;
-import java.util.List;
+public class PsiNullProblem {
+    private NullProblemType type;
+    private PsiElement element;
 
-public class OtherProblemFinder implements ProblemFinder {
-    public List<PsiNullProblem> findProblems(MethodInfo info) {
-        List<PsiNullProblem> problems = new ArrayList<PsiNullProblem>();
-        for (PsiClass cls : info.getFileCopy().getClasses()) {
+    public PsiNullProblem(NullProblemType type, PsiElement element) {
+        this.type = type;
+        this.element = element;
+    }
 
-            ClassMethods:
-            for (PsiMethod method : cls.getMethods()) {
-                if (NullyTools.hasNonNullAnnotation(method)) continue;
-                if (method.isConstructor()) continue;
+    public NullProblemType getType() {
+        return type;
+    }
 
-                for (PsiMethod superm : findSuperMethods(method, true)) {
-                    if (NullyTools.hasNonNullAnnotation(superm)) {
-                        problems.add(new PsiNullProblem(INVALID_NONNULL_OVERRIDE, method));
-                        break ClassMethods;
-                    }
-                }
-            }
-        }
-        return problems;
+    public PsiElement getElement() {
+        return element;
     }
 }

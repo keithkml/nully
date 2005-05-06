@@ -31,29 +31,35 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.analysis.soot;
 
 import com.intellij.psi.PsiJavaFile;
+import net.kano.nully.NonNull;
 import polyglot.ast.Node;
 import polyglot.frontend.Compiler;
 import polyglot.frontend.ExtensionInfo;
 import polyglot.frontend.Source;
 import polyglot.frontend.SourceJob;
 import soot.ClassSource;
-import soot.SootClass;
 import soot.CompilationDeathException;
+import soot.SootClass;
 import soot.javaToJimple.InitialResolver;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.util.List;
 import java.util.Collections;
+import java.util.List;
 
-public class VirtualJavaFileClassSource extends ClassSource {
-    private final PsiJavaFile file;
+/**
+ * A {@code ClassSource} which resolves classes by compiling to Jimple code from
+ * a {@code PsiJavaFile}.
+ */
+public class PsiJavaFileClassSource extends ClassSource {
     private static final String TEMP_FILE_NAME = "test.java";
 
-    public VirtualJavaFileClassSource(String className, PsiJavaFile file) {
+    private final PsiJavaFile file;
+
+    public PsiJavaFileClassSource(@NonNull String className, @NonNull PsiJavaFile file) {
         super(className);
 
         this.file = file;
@@ -62,7 +68,7 @@ public class VirtualJavaFileClassSource extends ClassSource {
     public List resolve(SootClass sc) {
         ExtensionInfo extInfo = new NullyExtensionInfo(TEMP_FILE_NAME,
                         new StringReader(file.getText()));
-        polyglot.main.Options options = extInfo.getOptions();
+//        polyglot.main.Options options = extInfo.getOptions();
 
 //        options.assertions = true;
 //

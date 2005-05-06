@@ -31,12 +31,41 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.analysis;
 
-public class LocalVarsTester {
-    void localvars() {
-        Object source = null;
-        @NonNull Object dest;
-        dest = (source); 
+import com.intellij.psi.PsiClass;
+import com.intellij.psi.PsiMethod;
+import static com.intellij.psi.util.PsiSuperMethodUtil.findSuperMethods;
+import static net.kano.nully.analysis.NullProblemType.INVALID_NONNULL_OVERRIDE;
+import net.kano.nully.analysis.AnalysisInfo;
+import net.kano.nully.NullyTools;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class OtherProblemFinder implements ProblemFinder {
+    public List<PsiNullProblem> findProblems(AnalysisInfo info) {
+        List<PsiNullProblem> problems = new ArrayList<PsiNullProblem>();
+        for (PsiClass cls : info.getFileOrig().getClasses()) {
+            checkClass(cls, problems);
+        }
+        return problems;
+    }
+
+    private void checkClass(PsiClass cls, List<PsiNullProblem> problems) {
+        ClassMethods:
+        for (PsiMethod method : cls.getMethods()) {
+            if (NullyTools.hasNonNullAnnotation(method)) continue;
+            if (method.isConstructor()) continue;
+
+            for (PsiMethod superm : findSuperMethods(method, true)) {
+                if (NullyTools.hasNonNullAnnotation(superm)) {
+                    problems.add(new PsiNullProblem(INVALID_NONNULL_OVERRIDE, method));
+                    continue ClassMethods;
+                }
+            }
+        }
+
+        for (PsiClass inner : cls.getInnerClasses()) checkClass(inner, problems);
     }
 }

@@ -31,30 +31,72 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.analysis;
 
 import com.intellij.psi.PsiJavaFile;
-import soot.ClassProvider;
-import soot.ClassSource;
+import net.kano.nully.OffsetsTracker;
+import soot.SootClass;
+import soot.SootMethod;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
-public class VirtualJavaFileClassProvider implements ClassProvider {
-    private final List providedClassNames;
-    private final PsiJavaFile file;
+public class AnalysisInfo {
+    private PsiJavaFile fileOrig;
+    private PsiJavaFile fileCopy;
+    private List<SootMethod> sootMethods = new ArrayList<SootMethod>();
+    private List<SootClass> sootClasses;
+    private OffsetsTracker tracker;
+    private List<String> strippedClassNames = new ArrayList<String>();
 
-    public VirtualJavaFileClassProvider(List classNames, PsiJavaFile file) {
-        this.providedClassNames = classNames;
-        this.file = file;
+    public OffsetsTracker getTracker() {
+        return tracker;
     }
 
-    public ClassSource find(String className) {
-        if (providedClassNames.contains(className)) {
-            return new VirtualJavaFileClassSource(className, file);
+    public void setTracker(OffsetsTracker tracker) {
+        this.tracker = tracker;
+    }
 
-        } else {
-            System.out.println("Couldn't resolve " + className);
-            return null;
+
+    public PsiJavaFile getFileCopy() {
+        return fileCopy;
+    }
+
+    public void setFileCopy(PsiJavaFile fileCopy) {
+        this.fileCopy = fileCopy;
+    }
+
+    public List<SootMethod> getSootMethods() {
+        return sootMethods;
+    }
+
+    public List<SootClass> getSootClasses() {
+        return sootClasses;
+    }
+
+    public void setSootClasses(List<SootClass> sootClasses) {
+        this.sootClasses = sootClasses;
+        for (SootClass cls : sootClasses) {
+            for (SootMethod method : (List<SootMethod>) cls.getMethods()) {
+                if (method.isConcrete()) sootMethods.add(method);
+            }
         }
+    }
+
+    public PsiJavaFile getFileOrig() {
+        return fileOrig;
+    }
+
+    public void setFileOrig(PsiJavaFile fileOrig) {
+        this.fileOrig = fileOrig;
+    }
+
+    public void addStrippedClassNames(Collection<String> names) {
+        strippedClassNames.addAll(names);
+    }
+
+    public List<String> getStrippedClassNames() {
+        return strippedClassNames;
     }
 }

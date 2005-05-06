@@ -31,30 +31,33 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.analysis.soot;
 
-import polyglot.frontend.FileSource;
+import com.intellij.psi.PsiJavaFile;
+import net.kano.nully.NonNull;
+import soot.ClassProvider;
+import soot.ClassSource;
 
-import java.io.Reader;
-import java.io.IOException;
+import java.util.List;
 
-public class ReaderFileSource extends FileSource {
-    private final Reader reader;
-    private final String fileName;
+/**
+ * A {@code ClassProvider} which provides classes from a {@code PsiJavaFile}.
+ */
+public class PsiJavaFileClassProvider implements ClassProvider {
+    private final List<String> providedClassNames;
+    private final PsiJavaFile file;
 
-    public ReaderFileSource(String fileName, Reader reader) throws IOException {
-        super(".");
-        this.fileName = fileName;
-        this.reader = reader;
+    public PsiJavaFileClassProvider(@NonNull List<String> classNames, @NonNull PsiJavaFile file) {
+        this.providedClassNames = classNames;
+        this.file = file;
     }
 
-    public String name() {
-        return fileName;
-    }
+    public ClassSource find(String className) {
+        if (providedClassNames.contains(className)) {
+            return new PsiJavaFileClassSource(className, file);
 
-    public String path() {
-        return fileName;
+        } else {
+            return null;
+        }
     }
-
-    public Reader open() { return reader; }
 }
