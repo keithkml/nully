@@ -31,65 +31,65 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.inspection;
 
 import com.intellij.codeInspection.InspectionManager;
 import com.intellij.codeInspection.LocalInspectionTool;
 import com.intellij.codeInspection.ProblemDescriptor;
-import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiJavaFile;
+import com.intellij.psi.PsiMethod;
+import com.intellij.psi.PsiField;
+import net.kano.nully.analysis.CodeAnalyzer;
+import net.kano.nully.analysis.AnalysisInfo;
+import net.kano.nully.analysis.psipreprocess.PreparerForSoot;
 
 import java.util.List;
 
 public class NullyInspector extends LocalInspectionTool {
     public String getGroupDisplayName() {
-        return "Nully";
+        return "Null values";
     }
 
     public String getDisplayName() {
-        return "Nully";
+        return "Possibly null value in @NonNull context";
     }
 
     public String getShortName() {
-        return "Nully";
+        return "NullyCheck";
+    }
+
+    public ProblemDescriptor[] checkField(PsiField field,
+            InspectionManager manager, boolean isOnTheFly) {
+        return super.checkField(field, manager, isOnTheFly);
     }
 
     public ProblemDescriptor[] checkMethod(PsiMethod method,
             InspectionManager manager, boolean isOnTheFly) {
-        MethodInfo info = new MethodInfo();
-        info.setInspectionManager(manager);
+        // setup the method information
 
         PsiFile container = method.getContainingFile();
         if (!(container instanceof PsiJavaFile)) return null;
         PsiJavaFile jfile = (PsiJavaFile) container;
 
-        PsiPreparer preparer = new PsiPreparer(info);
-        preparer.prepare(jfile, method);
+        AnalysisInfo info = new AnalysisInfo();
+        PreparerForSoot preparer = new PreparerForSoot(info);
+        preparer.prepareForMethodAnalysis(jfile, method);
 
-        MethodAnalyzer analyzer = new MethodAnalyzer();
+        CodeAnalyzer analyzer = new CodeAnalyzer();
         List<ProblemDescriptor> problems;
         try {
             analyzer.analyze(info);
 
             ProblemHighlighter highlighter = new ProblemHighlighter();
-            problems = highlighter.highlightProblems(info);
-
-            //        NullyTools.printNullInfo(info.getBody());
+            problems = highlighter.highlightProblems(info, manager);
 
         } finally {
-            //TODO: why not removeCopy?
-//        copier.removeCopy(origFile);
-
             analyzer.resetSoot();
+            preparer.removeCopy(jfile);
         }
 
-        ProblemDescriptor[] problemsArray;
-        if (problems.isEmpty()) {
-            problemsArray = null;
-        } else {
-            problemsArray = problems.toArray(new ProblemDescriptor[0]);
-        }
-        return problemsArray;
+        if (problems.isEmpty()) return null;
+        else return problems.toArray(new ProblemDescriptor[0]);
     }
 }

@@ -34,8 +34,9 @@
 package net.kano.nully;
 
 import com.intellij.openapi.compiler.CompilerManager;
-import com.intellij.openapi.project.Project;
 import com.intellij.openapi.components.ProjectComponent;
+import com.intellij.openapi.project.Project;
+import net.kano.nully.compilation.RuntimeCheckInserter;
 
 public class NullyProjectComponent implements ProjectComponent {
     private Project project;

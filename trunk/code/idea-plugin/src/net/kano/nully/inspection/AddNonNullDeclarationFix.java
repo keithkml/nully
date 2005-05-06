@@ -31,33 +31,33 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.inspection;
 
-import com.intellij.codeInspection.InspectionToolProvider;
-import com.intellij.openapi.components.ApplicationComponent;
-import net.kano.nully.inspection.NullyInspector;
+import com.intellij.codeInspection.LocalQuickFix;
+import com.intellij.codeInspection.ProblemDescriptor;
+import com.intellij.openapi.project.Project;
+import com.intellij.psi.PsiMethod;
+import com.intellij.psi.PsiModifierList;
+import com.intellij.psi.PsiElementFactory;
+import com.intellij.psi.codeStyle.CodeStyleManager;
+import com.intellij.util.IncorrectOperationException;
+import net.kano.nully.NonNull;
 
-public class NullyApplicationComponent implements ApplicationComponent, InspectionToolProvider {
-    //TODO: detect when null check is needed for non-@NonNull parameter
-    //TODO: detect when method only returns non-null
-    //TODO: use custom keys for each AnalysisInfo
-    //TODO: detect @nonnull on primitives
-
-    public String getComponentName() {
-        return "Nully";
+public class AddNonNullDeclarationFix implements LocalQuickFix {
+    public String getName() {
+        return "Mark method @" + NonNull.class.getSimpleName();
     }
 
-    public void initComponent() {
-//        G.v().out = new PrintStream(new OutputStream() {
-//            public void write(int i) throws IOException {
-//            }
-//        });
-    }
-
-    public void disposeComponent() {
-    }
-
-    public Class[] getInspectionClasses() {
-        return new Class[] { NullyInspector.class };
+    public void applyFix(Project project, ProblemDescriptor descriptor) {
+        PsiMethod method = (PsiMethod) descriptor.getPsiElement();
+        PsiModifierList mods = method.getModifierList();
+        PsiElementFactory factory = method.getManager().getElementFactory();
+        try {
+            mods.add(factory.createAnnotationFromText(
+                    "@"+ NonNull.class.getName(), mods));
+            CodeStyleManager.getInstance(project).reformat(mods);
+        } catch (IncorrectOperationException e) {
+            e.printStackTrace();
+        }
     }
 }

@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.analysis.soot;
 
 import soot.Body;
 import soot.BodyTransformer;
@@ -43,48 +43,47 @@ import soot.jimple.toolkits.annotation.nullcheck.BranchedRefVarsAnalysis;
 import soot.toolkits.graph.ExceptionalUnitGraph;
 import soot.toolkits.scalar.FlowSet;
 
-import java.util.Iterator;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
-//TODO: re-implement using nullpointerchecker
+/**
+ * Tags possible null references with a {@link MayBeNullTag}.
+ */
 public class NullPointerTagger extends BodyTransformer {
+    //TODO: re-implement using nullpointerchecker -- why??
+
 	protected void internalTransform (Body b, String phaseName, Map options) {
 		BranchedRefVarsAnalysis analysis = new BranchedRefVarsAnalysis (
 				new ExceptionalUnitGraph(b));
 
-		Iterator it = b.getUnits().iterator();
+        for (Stmt s : (Collection<Stmt>)b.getUnits()) {
+            FlowSet beforeSet = (FlowSet) analysis.getFlowBefore(s);
 
-		while (it.hasNext()) {
-			Stmt s = (Stmt)it.next();
-			
-			Iterator usesIt = s.getUseBoxes().iterator();
-			FlowSet beforeSet = (FlowSet)analysis.getFlowBefore(s);
-				
-			while (usesIt.hasNext()) {
-				ValueBox vBox = (ValueBox)usesIt.next();
-				addColorTags(vBox, beforeSet, s, analysis);
-			}
-
-			Iterator defsIt = s.getDefBoxes().iterator();
-			FlowSet afterSet = (FlowSet)analysis.getFallFlowAfter(s);
-
-			while (defsIt.hasNext()){
-				ValueBox vBox = (ValueBox)defsIt.next();
-				addColorTags(vBox, afterSet, s, analysis);
-			}
-		}
-	}
-	
-	private void addColorTags(ValueBox vBox, FlowSet set, Stmt s, BranchedRefVarsAnalysis analysis){
-		Value val = vBox.getValue();
-		if (val.getType() instanceof RefLikeType) {
-			//G.v().out.println(val+": "+val.getClass().toString());
-		
-			int vInfo = analysis.anyRefInfo(val, set);
-
-            if (vInfo == 1 || vInfo == 99 || vInfo == 0) {
-                vBox.addTag(new MayBeNullTag());
+            for (ValueBox vBox : (List<ValueBox>) s.getUseBoxes()) {
+                addColorTags(vBox, beforeSet, analysis);
             }
-		}
+
+            FlowSet afterSet = (FlowSet) analysis.getFallFlowAfter(s);
+
+            for (ValueBox vBox : (Collection<ValueBox>)s.getDefBoxes()) {
+                addColorTags(vBox, afterSet, analysis);
+            }
+        }
 	}
+
+	private void addColorTags(ValueBox vBox, FlowSet set,
+            BranchedRefVarsAnalysis analysis){
+		Value val = vBox.getValue();
+        if (!(val.getType() instanceof RefLikeType)) return;
+
+        int vInfo = analysis.anyRefInfo(val, set);
+
+        boolean definitelyNull = vInfo == BranchedRefVarsAnalysis.kNull;
+        if (definitelyNull
+                || vInfo == BranchedRefVarsAnalysis.kTop
+                || vInfo == BranchedRefVarsAnalysis.kBottom) {
+            vBox.addTag(new MayBeNullTag(definitelyNull));
+        }
+    }
 }

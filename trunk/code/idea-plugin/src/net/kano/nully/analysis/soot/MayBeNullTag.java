@@ -31,11 +31,29 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.analysis.soot;
 
-public enum NullProblemType {
-    NULL_ASSIGNMENT_TO_NONNULL_VARIABLE,
-    NULL_RETURN_IN_NONNULL_METHOD,
-    NULL_ARGUMENT_FOR_NONNULL_PARAMETER,
-    INVALID_NONNULL_OVERRIDE
+import soot.tagkit.Tag;
+import soot.tagkit.AttributeValueException;
+
+/**
+ * A tag indicating that a reference may produce a null value.
+ */
+public class MayBeNullTag implements Tag {
+    public static final String TAGNAME = "MayBeNull";
+
+    private final boolean definitelyNull;
+
+    public MayBeNullTag(boolean definitelyNull) {
+
+        this.definitelyNull = definitelyNull;
+    }
+
+    public boolean isDefinitelyNull() { return definitelyNull; }
+
+    public String getName() { return TAGNAME; }
+
+    public byte[] getValue() throws AttributeValueException {
+        throw new IllegalStateException("no value for null tag");
+    }
 }

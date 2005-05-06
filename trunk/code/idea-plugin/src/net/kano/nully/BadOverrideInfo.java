@@ -33,15 +33,32 @@
 
 package net.kano.nully;
 
-import soot.tagkit.Tag;
-import soot.tagkit.AttributeValueException;
+import com.intellij.psi.PsiMethod;
+import net.kano.nully.analysis.PsiNullProblem;
 
-public class MayBeNullTag implements Tag {
-    public String getName() {
-        return "MayBeNull";
+public class BadOverrideInfo {
+    private final PsiNullProblem problem;
+    private final OverrideType type;
+    private final PsiMethod overridden;
+
+    public BadOverrideInfo(PsiNullProblem problem, OverrideType type,
+            PsiMethod overridden) {
+        this.problem = problem;
+        this.type = type;
+        this.overridden = overridden;
     }
 
-    public byte[] getValue() throws AttributeValueException {
-        throw new IllegalStateException("no value for null tag");
+    public PsiNullProblem getProblem() {
+        return problem;
     }
+
+    public OverrideType getType() {
+        return type;
+    }
+
+    public PsiMethod getOverridden() {
+        return overridden;
+    }
+
+    public static enum OverrideType { OVERRIDES, IMPLEMENTS }
 }

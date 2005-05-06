@@ -51,7 +51,7 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.analysis.soot;
 import soot.Body;
 import soot.BodyTransformer;
 import soot.Local;

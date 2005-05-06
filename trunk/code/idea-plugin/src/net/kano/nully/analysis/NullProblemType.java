@@ -31,24 +31,11 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.analysis;
 
-import com.intellij.psi.PsiElement;
-
-public class PsiNullProblem {
-    private NullProblemType type;
-    private PsiElement element;
-
-    public PsiNullProblem(NullProblemType type, PsiElement element) {
-        this.type = type;
-        this.element = element;
-    }
-
-    public NullProblemType getType() {
-        return type;
-    }
-
-    public PsiElement getElement() {
-        return element;
-    }
+public enum NullProblemType {
+    NULL_ASSIGNMENT_TO_NONNULL_VARIABLE,
+    NULL_RETURN_IN_NONNULL_METHOD,
+    NULL_ARGUMENT_FOR_NONNULL_PARAMETER,
+    INVALID_NONNULL_OVERRIDE
 }

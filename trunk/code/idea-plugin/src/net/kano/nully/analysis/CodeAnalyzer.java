@@ -31,16 +31,24 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.analysis;
 
 import com.intellij.psi.PsiArrayType;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiClassType;
-import com.intellij.psi.PsiImportList;
-import com.intellij.psi.PsiImportStatementBase;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiType;
+import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.util.IncorrectOperationException;
+import net.kano.nully.NullyTools;
+import net.kano.nully.OffsetsTracker;
+import net.kano.nully.NullParameterException;
+import net.kano.nully.NullReturnException;
+import net.kano.nully.NonNullTools;
+import net.kano.nully.UnexpectedNullValueException;
+import net.kano.nully.analysis.soot.JimpleMethodPreprocessor;
+import net.kano.nully.analysis.soot.NullPointerTagger;
+import net.kano.nully.analysis.soot.PsiJavaFileClassProvider;
 import soot.ArrayType;
 import soot.BooleanType;
 import soot.ByteType;
@@ -70,8 +78,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class MethodAnalyzer {
-    private MethodInfo info;
+public class CodeAnalyzer {
+    private AnalysisInfo info;
 
     private Map<PsiType,Type> staticSootTypes = new HashMap<PsiType, Type>();
     {
@@ -86,7 +94,7 @@ public class MethodAnalyzer {
         staticSootTypes.put(PsiType.VOID, VoidType.v());
     }
 
-    public void analyze(MethodInfo info) {
+    public void analyze(AnalysisInfo info) {
         this.info = info;
 
 //        NonnullChecker checker = new NonnullChecker(false);
@@ -94,17 +102,11 @@ public class MethodAnalyzer {
 //
 //        if (!checker.shouldProcess()) return false;
 
-        //TODO: don't delete nully import
         PsiJavaFile fileCopy = info.getFileCopy();
-        PsiImportList imports = fileCopy.getImportList();
-        PsiImportStatementBase nullyImport
-                = imports.findSingleClassImportStatement(NullyTools.ANNO_NONNULL);
-        if (nullyImport != null) {
-            try {
-                nullyImport.delete();
-            } catch (IncorrectOperationException e) {
-                e.printStackTrace();
-            }
+        try {
+            CodeStyleManager.getInstance(fileCopy.getManager()).optimizeImports(fileCopy);
+        } catch (IncorrectOperationException e) {
+            throw new IllegalStateException(e);
         }
 
         prepareSootClasses();
@@ -116,16 +118,15 @@ public class MethodAnalyzer {
         try {
             info.setTracker(new OffsetsTracker(new StringReader(fileCopy.getText())));
         } catch (IOException e) {
-            e.printStackTrace();
-            return;
+            throw new IllegalStateException(e);
         }
 
         storeSootObjects();
 
         prepareCodeForAnalysis();
 
-        JimpleMethodInstrumenter instrumenter = new JimpleMethodInstrumenter();
-        instrumenter.instrumentSootCode(info);
+        JimpleMethodPreprocessor preprocessor = new JimpleMethodPreprocessor(info);
+        preprocessor.preprocessCode();
 
         tagNulls();
     }
@@ -180,7 +181,7 @@ public class MethodAnalyzer {
 
         // tell Soot where to find the code
         SourceLocator.v().setClassProviders(Collections.singletonList(
-                new VirtualJavaFileClassProvider(names, fileCopy)));
+                new PsiJavaFileClassProvider(names, fileCopy)));
 
         // clean out Soot from previous runs
         Scene scene = Scene.v();
@@ -192,10 +193,17 @@ public class MethodAnalyzer {
         for (String name : names) {
             scene.addBasicClass(name, SootClass.BODIES);
         }
-        scene.addBasicClass(NullyTools.CLASS_UNEXPECTEDNULL);
-        scene.addBasicClass(NullyTools.CLASS_NULLPARAM);
-        scene.addBasicClass(NullyTools.CLASS_NONNULLTOOLS);
-        scene.addBasicClass(NullyTools.CLASS_NULLRETURN);
+
+        // add the classes which were stripped out
+        for (String stripped : info.getStrippedClassNames()) {
+            scene.addBasicClass(stripped);
+        }
+
+        // add any classes we might reference
+        scene.addBasicClass(UnexpectedNullValueException.class.getName());
+        scene.addBasicClass(NullParameterException.class.getName());
+        scene.addBasicClass(NonNullTools.class.getName());
+        scene.addBasicClass(NullReturnException.class.getName());
     }
 
     private void loadSootClasses() {
@@ -208,9 +216,18 @@ public class MethodAnalyzer {
         scene.loadBasicClasses();
         List<SootClass> classes = new ArrayList<SootClass>();
         for (PsiClass cls : info.getFileCopy().getClasses()) {
-            classes.add(scene.getSootClass(cls.getQualifiedName()));
+            addClass(cls, classes);
         }
         info.setSootClasses(classes);
+    }
+
+    private void addClass(PsiClass cls, List<SootClass> classes) {
+        if (cls.isInterface()) return;
+        String name = NullyTools.getRealName(cls);
+        classes.add(Scene.v().getSootClass(name));
+        for (PsiClass psiClass : cls.getInnerClasses()) {
+            addClass(psiClass, classes);
+        }
     }
 
     private void tagNulls() {

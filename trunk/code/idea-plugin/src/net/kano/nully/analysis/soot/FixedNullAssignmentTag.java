@@ -31,61 +31,23 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.analysis.soot;
 
-import com.intellij.codeInspection.InspectionManager;
-import com.intellij.psi.PsiClass;
-import com.intellij.psi.PsiJavaFile;
-import com.intellij.psi.PsiMethod;
-import soot.SootClass;
-import soot.SootMethod;
+import soot.tagkit.Tag;
+import soot.tagkit.AttributeValueException;
 
-import java.util.List;
-import java.util.ArrayList;
+/**
+ * A tag which indicates that a null value check has already been performed on a
+ * value.
+ */
+public class FixedNullAssignmentTag implements Tag {
+    public static final String TAG_NAME = "FixedNullAssignment";
 
-public class MethodInfo {
-    private PsiClass parentClassCopy;
-    private PsiMethod methodCopy;
-    private PsiJavaFile fileCopy;
-    private List<SootMethod> sootMethods = new ArrayList<SootMethod>();
-    private List<SootClass> sootClasses;
-    private InspectionManager inspectionManager;
-    private OffsetsTracker tracker;
-    private PsiMethod methodOrig;
-
-    public OffsetsTracker getTracker() {
-        return tracker;
+    public String getName() {
+        return TAG_NAME;
     }
 
-    public void setTracker(OffsetsTracker tracker) {
-        this.tracker = tracker;
-    }
-
-    public InspectionManager getInspectionManager() {
-        return inspectionManager;
-    }
-
-    public void setInspectionManager(InspectionManager inspectionManager) {
-        this.inspectionManager = inspectionManager;
-    }
-
-
-    public PsiJavaFile getFileCopy() {
-        return fileCopy;
-    }
-
-    public void setFileCopy(PsiJavaFile fileCopy) {
-        this.fileCopy = fileCopy;
-    }
-
-    public List<SootMethod> getSootMethods() {
-        return sootMethods;
-    }
-
-    public void setSootClasses(List<SootClass> sootClasses) {
-        this.sootClasses = sootClasses;
-        for (SootClass cls : sootClasses) {
-            sootMethods.addAll((List<SootMethod>) cls.getMethods());
-        }
+    public byte[] getValue() throws AttributeValueException {
+        throw new IllegalStateException("no value for fixednull tag");
     }
 }

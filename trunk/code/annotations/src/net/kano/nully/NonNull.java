@@ -33,17 +33,19 @@
 
 package net.kano.nully;
 
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
-import java.lang.annotation.ElementType;
 import java.lang.annotation.Documented;
+import static java.lang.annotation.ElementType.LOCAL_VARIABLE;
+import static java.lang.annotation.ElementType.METHOD;
+import static java.lang.annotation.ElementType.PARAMETER;
 import java.lang.annotation.Retention;
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
+import java.lang.annotation.Target;
 
 @Documented
-@Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.PARAMETER, ElementType.LOCAL_VARIABLE, ElementType.METHOD})
+@Retention(RUNTIME)
+@Target({PARAMETER, LOCAL_VARIABLE, METHOD})
 public @interface NonNull {
-    enum CheckedState { CHECKED, UNCHECKED }
-
-    CheckedState checked() default CheckedState.CHECKED;
+//    enum CheckedState { CHECKED, UNCHECKED }
+//
+//    CheckedState checked() default CheckedState.CHECKED;
 }

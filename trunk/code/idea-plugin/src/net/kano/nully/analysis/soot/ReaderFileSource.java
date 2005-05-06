@@ -31,17 +31,40 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.analysis.soot;
 
-import soot.tagkit.Tag;
-import soot.tagkit.AttributeValueException;
+import net.kano.nully.NonNull;
+import polyglot.frontend.FileSource;
 
-public class FixedNullAssignmentTag implements Tag {
-    public String getName() {
-        return "FixedNullAssignment";
+import java.io.IOException;
+import java.io.Reader;
+
+/**
+ * A {@code FileSource} which represents a virtual file whose contents are
+ * provided by a {@code Reader}.
+ */
+public class ReaderFileSource extends FileSource {
+    private final Reader reader;
+    private final String fileName;
+
+    public ReaderFileSource(@NonNull String fileName, @NonNull Reader reader)
+            throws IOException {
+        // we have to call super(".") because it checks to see if the file
+        // exists
+        super(".");
+
+        this.fileName = fileName;
+        this.reader = reader;
     }
 
-    public byte[] getValue() throws AttributeValueException {
-        throw new IllegalStateException("no value for fixednull tag");
+    public String name() {
+        return fileName;
     }
+
+    public String path() {
+        return fileName;
+    }
+
+    //TODO: open() can't be called twice. fix this.
+    public Reader open() { return reader; }
 }

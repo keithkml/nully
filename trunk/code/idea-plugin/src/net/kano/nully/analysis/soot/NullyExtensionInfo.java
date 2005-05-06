@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.analysis.soot;
 
 import polyglot.frontend.FileSource;
 import polyglot.frontend.Job;
@@ -49,7 +49,7 @@ import java.io.Reader;
 import java.util.Collections;
 import java.util.List;
 
-class NullyExtensionInfo extends soot.javaToJimple.jj.ExtensionInfo {
+public class NullyExtensionInfo extends soot.javaToJimple.jj.ExtensionInfo {
     private final String fileName;
     private final Reader reader;
 
