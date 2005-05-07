@@ -49,7 +49,6 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.psi.PsiCodeBlock;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiElementFactory;
@@ -59,19 +58,19 @@ import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiJavaToken;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiMethodCallExpression;
-import com.intellij.psi.PsiParameter;
-import com.intellij.psi.PsiRecursiveElementVisitor;
 import com.intellij.psi.PsiVariable;
-import com.intellij.psi.PsiWhiteSpace;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
-import net.kano.nully.BadOverrideInfo;
+import net.kano.nully.ImportantSuperMethodInfo;
 import net.kano.nully.NonNull;
-import net.kano.nully.NullyTools;
 import net.kano.nully.NonNullTools;
+import net.kano.nully.NullyTools;
 import static net.kano.nully.NullyTools.METHOD_CHECKNONNULLRETURN;
-import net.kano.nully.analysis.CodeAnalyzer;
+import net.kano.nully.OverrideType;
+import static net.kano.nully.OverrideType.IMPLEMENTS;
+import static net.kano.nully.OverrideType.OVERRIDES;
 import net.kano.nully.analysis.AnalysisInfo;
+import net.kano.nully.analysis.CodeAnalyzer;
 import net.kano.nully.analysis.NullProblemType;
 import static net.kano.nully.analysis.NullProblemType.INVALID_NONNULL_OVERRIDE;
 import static net.kano.nully.analysis.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
@@ -86,14 +85,14 @@ import net.kano.nully.analysis.psipreprocess.PreparerForSoot;
 import javax.swing.SwingUtilities;
 import java.io.IOException;
 import java.io.Writer;
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class RuntimeCheckInserter implements JavaSourceTransformingCompiler {
+public class NullyCompilerStep implements JavaSourceTransformingCompiler {
     //TODO: insert @NullyInstrumented annotation
-    private static final Logger LOGGER = Logger.getInstance(RuntimeCheckInserter.class.getName());
+    private static final Logger LOGGER
+            = Logger.getInstance(NullyCompilerStep.class.getName());
 
     private FileTypeManager ftm = FileTypeManager.getInstance();
     private FileType javaType = ftm.getFileTypeByExtension("java");
@@ -101,16 +100,16 @@ public class RuntimeCheckInserter implements JavaSourceTransformingCompiler {
     private FileDocumentManager docmgr = FileDocumentManager.getInstance();
     private PsiDocumentManager psiDocMgr;
 
-    public RuntimeCheckInserter(Project project) {
+    public NullyCompilerStep(@NonNull Project project) {
         psiDocMgr = PsiDocumentManager.getInstance(project);
     }
 
-    public boolean isTransformable(VirtualFile file) {
+    public boolean isTransformable(@NonNull VirtualFile file) {
         return file.getFileType().equals(javaType);
     }
 
-    public boolean transform(final CompileContext context,
-            final VirtualFile output, final VirtualFile original) {
+    public boolean transform(final @NonNull CompileContext context,
+            final @NonNull VirtualFile output, final @NonNull VirtualFile original) {
         try {
             final AtomicBoolean value = new AtomicBoolean();
             SwingUtilities.invokeAndWait(new Runnable() {
@@ -121,7 +120,8 @@ public class RuntimeCheckInserter implements JavaSourceTransformingCompiler {
                             ProgressIndicator indicator = context.getProgressIndicator();
                             try {
                                 indicator.pushState();
-                                indicator.setText("Validating null value constraints for " + original.getName());
+                                indicator.setText("Validating null value "
+                                        + "constraints for " + original.getName());
 
                                 try {
                                     value.set(reallyTransform(context,
@@ -129,7 +129,8 @@ public class RuntimeCheckInserter implements JavaSourceTransformingCompiler {
                                 } catch (Exception e) {
                                     context.addMessage(ERROR,
                                             "Error while running null checks in "
-                                                    + "file " + original.getName(), original.getUrl(), -1, -1);
+                                                    + "file " + original.getName(),
+                                            original.getUrl(), -1, -1);
                                     LOGGER.error(e);
                                 }
                             } finally {
@@ -141,18 +142,15 @@ public class RuntimeCheckInserter implements JavaSourceTransformingCompiler {
             });
 
             return value.get();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-
-        } catch (InvocationTargetException e) {
-            e.printStackTrace();
+        } catch (Exception e) {
+            LOGGER.error(e);
         }
 
         return false;
     }
 
-    private boolean reallyTransform(CompileContext context,
-            VirtualFile file, VirtualFile original)
+    private boolean reallyTransform(@NonNull CompileContext context,
+            @NonNull VirtualFile file, @NonNull VirtualFile original)
             throws IncorrectOperationException, IOException {
         Document doc = docmgr.getDocument(original);
         PsiFile psiFile = psiDocMgr.getPsiFile(doc);
@@ -184,29 +182,31 @@ public class RuntimeCheckInserter implements JavaSourceTransformingCompiler {
         // this must be done before transforming the code, before the PsiElements mean nothing!
         addCompilerWarnings(context, jfile, problems);
 
-        insertDetectedPossibleNullChecks(problems);
+        boolean changed = insertDetectedPossibleNullChecks(problems);
 
-        copy.accept(new NonNullMethodCallCheckInserter());
+        NonNullMethodCallCheckInserter inserter = new NonNullMethodCallCheckInserter();
+        copy.accept(inserter);
+        changed |= inserter.insertedAnything();
 
-        copy.accept(new PsiRecursiveElementVisitor() {
-            public void visitMethod(PsiMethod method) {
-                try {
-                    addParameterChecks(method);
-                } catch (IncorrectOperationException e) {
-                    e.printStackTrace();
-                }
-            }
-        });
+        //TODO: support SuppressNullChecks granularity
+        ParameterCheckInserter paraminserter = new ParameterCheckInserter();
+        copy.accept(paraminserter);
+        changed |= paraminserter.getModifiedMethods().isEmpty();
 
-        String text = copy.getText();
-        System.out.println("New:");
-        System.out.println(text);
-        writeJavaFile(copy, file);
-        return true;
+        if (changed) {
+            String text = copy.getText();
+            System.out.println("New:");
+            System.out.println(text);
+            writeJavaFile(copy, file);
+            return true;
+        } else {
+            return false;
+        }
     }
 
-    private void insertDetectedPossibleNullChecks(List<PsiNullProblem> problems)
+    private boolean insertDetectedPossibleNullChecks(List<PsiNullProblem> problems)
             throws IncorrectOperationException {
+        boolean changed = false;
         for (PsiNullProblem problem : problems) {
             PsiElement el = problem.getElement();
             String oldText = el.getText();
@@ -217,34 +217,31 @@ public class RuntimeCheckInserter implements JavaSourceTransformingCompiler {
             if (type == NULL_ARGUMENT_FOR_NONNULL_PARAMETER
                     || type == NULL_ASSIGNMENT_TO_NONNULL_VARIABLE) {
                 newExp = factory.createExpressionFromText(
-                        getUnexpectedNullValueCheckString(oldText), parent);
+                        NullyTools.getUnexpectedNullValueCheckString(oldText), parent);
+
             } else if (type == NULL_RETURN_IN_NONNULL_METHOD) {
                 newExp = factory.createExpressionFromText(NonNullTools.class.getName()
                         + "." + METHOD_CHECKNONNULLRETURN + "("
                         + oldText + ")", parent);
-            } else {
-                LOGGER.debug("Unknown problem type " + type);
             }
 
-            if (newExp != null) el.replace(newExp);
+            if (newExp != null) {
+                changed = true;
+                el.replace(newExp);
+            }
         }
+        return changed;
     }
 
-    private void addCompilerWarnings(CompileContext context, PsiJavaFile jfile,
-            List<PsiNullProblem> problems) {
+    private void addCompilerWarnings(@NonNull CompileContext context,
+            @NonNull PsiJavaFile jfile, @NonNull List<PsiNullProblem> problems) {
         for (PsiNullProblem problem : problems) {
             addCompilerWarning(context, jfile, problem);
         }
     }
 
-    private String getUnexpectedNullValueCheckString(String oldText) {
-        return NonNullTools.class.getName() + "."
-                + NullyTools.METHOD_CHECKNONNULLVALUE + "(" + oldText + ")";
-    }
-
-    private void addCompilerWarning(CompileContext context,
-            PsiJavaFile orig,
-            PsiNullProblem problem) {
+    private void addCompilerWarning(@NonNull CompileContext context,
+            @NonNull PsiJavaFile orig, @NonNull PsiNullProblem problem) {
         PsiElement element = problem.getElement();
         NullProblemType type = problem.getType();
         String desc;
@@ -255,32 +252,36 @@ public class RuntimeCheckInserter implements JavaSourceTransformingCompiler {
 
             int num = getIndexOfArgument(call, element);
             String numStr;
-            if (num == -1) {
-                numStr = "";
-            } else {
-                numStr = num + " ";
-            }
+            if (num == -1) numStr = "";
+            else numStr = num + " ";
+
             desc = "Argument " + numStr + "passed to method '" + method.getName()
                     + "' may be illegally null";
 
-        } else if (type == NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE) {
+        } else if (type == NULL_ASSIGNMENT_TO_NONNULL_VARIABLE) {
             PsiVariable var = NullyTools.getAssignedVariable(element);
             desc = "Value assigned to '" + var.getName()
                     + "' may be illegally null";
 
-        } else if (type == NullProblemType.NULL_RETURN_IN_NONNULL_METHOD) {
+        } else if (type == NULL_RETURN_IN_NONNULL_METHOD) {
             desc = "Returned value may be ilegally null";
+
         } else if (type == INVALID_NONNULL_OVERRIDE) {
-            BadOverrideInfo badOverrideInfo = NullyTools.getBadOverrideInfo(problem);
-            BadOverrideInfo.OverrideType overType = badOverrideInfo.getType();
+            ImportantSuperMethodInfo importantSuperMethodInfo = NullyTools.getBadOverrideInfo(problem);
+            OverrideType overType = importantSuperMethodInfo.getType();
             String word;
-            if (overType == BadOverrideInfo.OverrideType.OVERRIDES) word = "overrides";
-            else if (overType == BadOverrideInfo.OverrideType.IMPLEMENTS) word = "implements";
-            else word = null;
-            PsiMethod overridden = badOverrideInfo.getOverridden();
+            if (overType == OVERRIDES) word = "overrides";
+            else if (overType == IMPLEMENTS) word = "implements";
+            else {
+                LOGGER.error("invalid override type");
+                return;
+            }
+
+            PsiMethod overridden = importantSuperMethodInfo.getOverridden();
             desc = "Method " + ((PsiMethod) element).getName() + " illegal "
                     + word + " " + NullyTools.getQualifiedMemberName(overridden)
-                    + " without matching @" + NonNull.class.getSimpleName() + " declaration";
+                    + " without matching @" + NonNull.class.getSimpleName()
+                    + " declaration";
         } else {
             return;
         }
@@ -292,13 +293,13 @@ public class RuntimeCheckInserter implements JavaSourceTransformingCompiler {
                 line, off - StringUtil.lineColToOffset(text, line-1, 0) + 1);
     }
 
-    private int getIndexOfArgument(PsiMethodCallExpression call,
-            PsiElement element) {
+    private int getIndexOfArgument(@NonNull PsiMethodCallExpression call,
+            @NonNull PsiElement desiredArg) {
         int num = -1;
         int i = 1;
         for (PsiElement arg : call.getArgumentList().getExpressions()) {
             if (arg instanceof PsiJavaToken) continue;
-            if (PsiTreeUtil.isAncestor(arg, element, false)) {
+            if (PsiTreeUtil.isAncestor(arg, desiredArg, false)) {
                 num = i;
                 break;
             }
@@ -307,40 +308,7 @@ public class RuntimeCheckInserter implements JavaSourceTransformingCompiler {
         return num;
     }
 
-    private void addParameterChecks(PsiMethod method)
-            throws IncorrectOperationException {
-        PsiElementFactory factory = method.getManager().getElementFactory();
-        PsiParameter[] params = method.getParameterList().getParameters();
-        PsiCodeBlock body = method.getBody();
-        PsiElement addAfter = body.getLBrace();
-        for (int pi = 0; pi < params.length; pi++) {
-            PsiParameter param = params[pi];
-            if (!NullyTools.hasNonNullAnnotation(param)) continue;
-            
-            PsiElement el = factory.createStatementFromText(
-                    makeParamCheckString(param, pi), body);
-            body.addAfter(el, addAfter);
-            for (int i = 0; i < 1000; i++) {
-                PsiElement nextSibling = el.getNextSibling();
-                if (nextSibling instanceof PsiWhiteSpace) {
-                    nextSibling.delete();
-                } else {
-                    break;
-                }
-            }
-
-            addAfter = el;
-        }
-    }
-
-    private String makeParamCheckString(PsiParameter param, int number) {
-        return "if (" + param.getName() + " == null) {"
-                + "throw new net.kano.nully.NullParameterException(\""
-                + param.getName() + "\", " + (number + 1) + ");"
-                + "}";
-    }
-
-    private void writeJavaFile(PsiJavaFile copy, VirtualFile file)
+    private void writeJavaFile(@NonNull PsiJavaFile copy, @NonNull VirtualFile file)
             throws IOException {
         psiDocMgr.commitDocument(psiDocMgr.getDocument(copy));
         Writer writer = null;
@@ -362,36 +330,7 @@ public class RuntimeCheckInserter implements JavaSourceTransformingCompiler {
                 + " declarations in Java code";
     }
 
-    public boolean validateConfiguration(CompileScope scope) { return true; }
-
-
-    private class NonNullMethodCallCheckInserter extends PsiRecursiveElementVisitor {
-        public void visitMethodCallExpression(PsiMethodCallExpression expression) {
-            super.visitMethodCallExpression(expression);
-
-            PsiMethod calledMethod = expression.resolveMethod();
-            if (NullyTools.hasNonNullAnnotation(calledMethod)
-                    && !NullyTools.isNonnullCheckMethod(calledMethod)
-                    && !parentIsNonnullCheckMethod(expression)) {
-                PsiElementFactory factory = expression.getManager().getElementFactory();
-                String newString = getUnexpectedNullValueCheckString(expression.getText());
-                try {
-                    PsiExpression newExp = factory.createExpressionFromText(newString,
-                            expression.getParent());
-                    expression.replace(newExp);
-                } catch (IncorrectOperationException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-
-        private boolean parentIsNonnullCheckMethod(PsiMethodCallExpression expression) {
-            PsiElement parent = expression.getParent();
-            if (parent instanceof PsiMethodCallExpression) {
-                PsiMethodCallExpression parentCall = (PsiMethodCallExpression) parent;
-                return NullyTools.isNonnullCheckMethod(parentCall.resolveMethod());
-            }
-            return false;
-        }
+    public boolean validateConfiguration(@NonNull CompileScope scope) {
+        return true;
     }
 }

@@ -34,33 +34,39 @@
 package net.kano.nully.inspection;
 
 import com.intellij.codeInspection.InspectionManager;
-import com.intellij.codeInspection.LocalInspectionTool;
 import com.intellij.codeInspection.ProblemDescriptor;
+import com.intellij.psi.PsiClass;
+import com.intellij.psi.PsiField;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiMethod;
-import com.intellij.psi.PsiField;
-import net.kano.nully.analysis.CodeAnalyzer;
 import net.kano.nully.analysis.AnalysisInfo;
+import net.kano.nully.analysis.CodeAnalyzer;
+import net.kano.nully.analysis.NullValueProblemFinder;
+import net.kano.nully.analysis.ProblemFinder;
 import net.kano.nully.analysis.psipreprocess.PreparerForSoot;
 
+import java.util.Arrays;
 import java.util.List;
 
-public class NullyInspector extends LocalInspectionTool {
-    public String getGroupDisplayName() {
-        return "Null values";
-    }
-
+public class NullProblemInspector extends AbstractNullyInspection {
     public String getDisplayName() {
         return "Possibly null value in @NonNull context";
     }
 
     public String getShortName() {
-        return "NullyCheck";
+        return "NullyNullProblemCheck";
+    }
+
+    public ProblemDescriptor[] checkClass(PsiClass aClass,
+            InspectionManager manager, boolean isOnTheFly) {
+        //TODO: check initializers
+        return super.checkClass(aClass, manager, isOnTheFly);
     }
 
     public ProblemDescriptor[] checkField(PsiField field,
             InspectionManager manager, boolean isOnTheFly) {
+        //TODO: check field initializer
         return super.checkField(field, manager, isOnTheFly);
     }
 
@@ -82,7 +88,8 @@ public class NullyInspector extends LocalInspectionTool {
             analyzer.analyze(info);
 
             ProblemHighlighter highlighter = new ProblemHighlighter();
-            problems = highlighter.highlightProblems(info, manager);
+            problems = highlighter.highlightProblems(info, manager,
+                    Arrays.<ProblemFinder>asList(new NullValueProblemFinder()));
 
         } finally {
             analyzer.resetSoot();

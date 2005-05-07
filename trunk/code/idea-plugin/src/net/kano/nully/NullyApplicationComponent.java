@@ -35,13 +35,14 @@ package net.kano.nully;
 
 import com.intellij.codeInspection.InspectionToolProvider;
 import com.intellij.openapi.components.ApplicationComponent;
-import net.kano.nully.inspection.NullyInspector;
+import net.kano.nully.inspection.NullProblemInspector;
+import net.kano.nully.inspection.IllegalOverrideInspector;
+import net.kano.nully.inspection.NonNullPrimitiveInspector;
 
 public class NullyApplicationComponent implements ApplicationComponent, InspectionToolProvider {
     //TODO: detect when null check is needed for non-@NonNull parameter
     //TODO: detect when method only returns non-null
     //TODO: use custom keys for each AnalysisInfo
-    //TODO: detect @nonnull on primitives
 
     public String getComponentName() {
         return "Nully";
@@ -58,6 +59,7 @@ public class NullyApplicationComponent implements ApplicationComponent, Inspecti
     }
 
     public Class[] getInspectionClasses() {
-        return new Class[] { NullyInspector.class };
+        return new Class[] { NullProblemInspector.class,
+            IllegalOverrideInspector.class, NonNullPrimitiveInspector.class };
     }
 }

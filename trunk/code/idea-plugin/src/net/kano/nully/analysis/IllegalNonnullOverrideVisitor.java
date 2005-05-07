@@ -33,24 +33,38 @@
 
 package net.kano.nully.analysis;
 
-import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiMethod;
-import static com.intellij.psi.util.PsiSuperMethodUtil.findSuperMethods;
-import static net.kano.nully.analysis.NullProblemType.INVALID_NONNULL_OVERRIDE;
+import com.intellij.psi.PsiRecursiveElementVisitor;
+import com.intellij.psi.util.PsiSuperMethodUtil;
+import net.kano.nully.NullyTools;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class OtherProblemFinder implements ProblemFinder {
-    public List<PsiNullProblem> findProblems(AnalysisInfo info) {
-        PsiJavaFile orig = info.getFileOrig();
-        IllegalNonnullOverrideVisitor visitor = new IllegalNonnullOverrideVisitor();
-        orig.accept(visitor);
-
-        List<PsiNullProblem> problems = new ArrayList<PsiNullProblem>();
-        for (PsiMethod method : visitor.getBadMethods()) {
-            problems.add(new PsiNullProblem(INVALID_NONNULL_OVERRIDE, method));
+public class IllegalNonnullOverrideVisitor extends PsiRecursiveElementVisitor {
+    public static boolean methodIllegallyOverrides(PsiMethod method) {
+        boolean bad = false;
+        if (NullyTools.hasNonNullAnnotation(method)) bad = false;
+        else if (method.isConstructor()) bad = false;
+        else for (PsiMethod superm : PsiSuperMethodUtil.findSuperMethods(method, true)) {
+            if (NullyTools.hasNonNullAnnotation(superm)) {
+                bad = true;
+                break;
+            }
         }
-        return problems;
+        return bad;
+    }
+
+    private final List<PsiMethod> badMethods = new ArrayList<PsiMethod>();
+
+    public void visitMethod(PsiMethod method) {
+        super.visitMethod(method);
+
+        boolean bad = methodIllegallyOverrides(method);
+        if (bad) badMethods.add(method);
+    }
+
+    public List<PsiMethod> getBadMethods() {
+        return badMethods;
     }
 }

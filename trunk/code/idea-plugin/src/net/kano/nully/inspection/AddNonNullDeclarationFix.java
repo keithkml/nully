@@ -39,6 +39,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiModifierList;
 import com.intellij.psi.PsiElementFactory;
+import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.util.IncorrectOperationException;
 import net.kano.nully.NonNull;
@@ -49,12 +50,13 @@ public class AddNonNullDeclarationFix implements LocalQuickFix {
     }
 
     public void applyFix(Project project, ProblemDescriptor descriptor) {
-        PsiMethod method = (PsiMethod) descriptor.getPsiElement();
+        PsiMethod method = PsiTreeUtil.getParentOfType(descriptor.getPsiElement(),
+                PsiMethod.class, false);
         PsiModifierList mods = method.getModifierList();
         PsiElementFactory factory = method.getManager().getElementFactory();
         try {
             mods.add(factory.createAnnotationFromText(
-                    "@"+ NonNull.class.getName(), mods));
+                    "@"+ NonNull.class.getSimpleName(), mods));
             CodeStyleManager.getInstance(project).reformat(mods);
         } catch (IncorrectOperationException e) {
             e.printStackTrace();

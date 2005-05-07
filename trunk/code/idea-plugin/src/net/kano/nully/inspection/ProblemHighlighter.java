@@ -37,21 +37,16 @@ import com.intellij.codeInspection.InspectionManager;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
 import static com.intellij.codeInspection.ProblemHighlightType.GENERIC_ERROR_OR_WARNING;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiVariable;
-import com.intellij.openapi.diagnostic.Logger;
 import net.kano.nully.NullyTools;
-import net.kano.nully.NonNull;
-import net.kano.nully.BadOverrideInfo;
 import net.kano.nully.analysis.AnalysisInfo;
 import net.kano.nully.analysis.NullProblemType;
-import static net.kano.nully.analysis.NullProblemType.INVALID_NONNULL_OVERRIDE;
 import static net.kano.nully.analysis.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
 import static net.kano.nully.analysis.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
 import static net.kano.nully.analysis.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
-import net.kano.nully.analysis.NullValueProblemFinder;
-import net.kano.nully.analysis.OtherProblemFinder;
 import net.kano.nully.analysis.ProblemFinder;
 import net.kano.nully.analysis.PsiNullProblem;
 
@@ -62,14 +57,12 @@ public class ProblemHighlighter {
     private static final Logger LOGGER = Logger.getInstance(ProblemHighlighter.class.getName());
 
     public List<ProblemDescriptor> highlightProblems(AnalysisInfo info,
-            InspectionManager mgr) {
+            InspectionManager mgr, List<ProblemFinder> finders) {
         List<PsiNullProblem> psiProblems = new ArrayList<PsiNullProblem>();
 
-        ProblemFinder finder = new NullValueProblemFinder();
-        psiProblems.addAll(finder.findProblems(info));
-
-        ProblemFinder otherFinder = new OtherProblemFinder();
-        psiProblems.addAll(otherFinder.findProblems(info));
+        for (ProblemFinder finder : finders) {
+            psiProblems.addAll(finder.findProblems(info));
+        }
 
         List<ProblemDescriptor> problems = new ArrayList<ProblemDescriptor>();
         for (PsiNullProblem psiProblem : psiProblems) {
@@ -101,25 +94,6 @@ public class ProblemHighlighter {
         } else if (type == NULL_RETURN_IN_NONNULL_METHOD) {
             desc = "Returned value may be ilegally null";
 
-        } else if (type == INVALID_NONNULL_OVERRIDE) {
-            BadOverrideInfo info = NullyTools.getBadOverrideInfo(psiProblem);
-
-            String word;
-            BadOverrideInfo.OverrideType overrideType = info.getType();
-            if (overrideType == BadOverrideInfo.OverrideType.OVERRIDES) {
-                word = "overrides";
-            } else if (overrideType == BadOverrideInfo.OverrideType.IMPLEMENTS) {
-                word = "implements";
-            } else {
-                LOGGER.error("Override type was " + overrideType);
-                return null;
-            }
-
-            desc = "<HTML>Method illegally " + word + " @"
-                    + NonNull.class.getSimpleName() + " method "
-                    + NullyTools.getQualifiedMemberName(info.getOverridden())
-                    + " without @" + NonNull.class.getSimpleName() + " declaration";
-            fix = new AddNonNullDeclarationFix();
         }
 
         if (desc == null) {

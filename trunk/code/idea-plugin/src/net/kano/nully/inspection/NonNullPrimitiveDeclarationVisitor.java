@@ -31,26 +31,48 @@
  *
  */
 
-package net.kano.nully.analysis;
+package net.kano.nully.inspection;
 
-import com.intellij.psi.PsiJavaFile;
+import com.intellij.psi.PsiLocalVariable;
 import com.intellij.psi.PsiMethod;
-import static com.intellij.psi.util.PsiSuperMethodUtil.findSuperMethods;
-import static net.kano.nully.analysis.NullProblemType.INVALID_NONNULL_OVERRIDE;
+import com.intellij.psi.PsiModifierListOwner;
+import com.intellij.psi.PsiParameter;
+import com.intellij.psi.PsiPrimitiveType;
+import com.intellij.psi.PsiRecursiveElementVisitor;
+import com.intellij.psi.PsiType;
+import net.kano.nully.NullyTools;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class OtherProblemFinder implements ProblemFinder {
-    public List<PsiNullProblem> findProblems(AnalysisInfo info) {
-        PsiJavaFile orig = info.getFileOrig();
-        IllegalNonnullOverrideVisitor visitor = new IllegalNonnullOverrideVisitor();
-        orig.accept(visitor);
+public class NonNullPrimitiveDeclarationVisitor extends PsiRecursiveElementVisitor {
+    private List<PsiModifierListOwner> badElements = new ArrayList<PsiModifierListOwner>();
 
-        List<PsiNullProblem> problems = new ArrayList<PsiNullProblem>();
-        for (PsiMethod method : visitor.getBadMethods()) {
-            problems.add(new PsiNullProblem(INVALID_NONNULL_OVERRIDE, method));
+    public void visitMethod(PsiMethod method) {
+        super.visitMethod(method);
+        if (!method.isConstructor()
+                && checkNonNullPrimitive(method, method.getReturnType())) {
+            badElements.add(method);
         }
-        return problems;
+    }
+
+    public void visitParameter(PsiParameter parameter) {
+        super.visitParameter(parameter);
+
+        if (checkNonNullPrimitive(parameter, parameter.getType())) badElements.add(parameter);
+    }
+
+    public void visitLocalVariable(PsiLocalVariable variable) {
+        super.visitLocalVariable(variable);
+        
+        if (checkNonNullPrimitive(variable, variable.getType())) badElements.add(variable);
+    }
+
+    private boolean checkNonNullPrimitive(PsiModifierListOwner owner, PsiType type) {
+        return type instanceof PsiPrimitiveType && NullyTools.hasNonNullAnnotation(owner);
+    }
+
+    public List<PsiModifierListOwner> getBadElements() {
+        return badElements;
     }
 }

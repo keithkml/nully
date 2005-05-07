@@ -34,31 +34,22 @@
 package net.kano.nully;
 
 import com.intellij.psi.PsiMethod;
-import net.kano.nully.analysis.PsiNullProblem;
 
-public class BadOverrideInfo {
-    private final PsiNullProblem problem;
+public class ImportantSuperMethodInfo {
     private final OverrideType type;
     private final PsiMethod overridden;
 
-    public BadOverrideInfo(PsiNullProblem problem, OverrideType type,
-            PsiMethod overridden) {
-        this.problem = problem;
+    public ImportantSuperMethodInfo(@NonNull OverrideType type,
+            @NonNull PsiMethod overridden) {
         this.type = type;
         this.overridden = overridden;
     }
 
-    public PsiNullProblem getProblem() {
-        return problem;
-    }
-
-    public OverrideType getType() {
+    public @NonNull OverrideType getType() {
         return type;
     }
 
-    public PsiMethod getOverridden() {
+    public @NonNull PsiMethod getOverridden() {
         return overridden;
     }
-
-    public static enum OverrideType { OVERRIDES, IMPLEMENTS }
 }
