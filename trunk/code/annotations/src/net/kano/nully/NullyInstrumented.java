@@ -33,18 +33,12 @@
 
 package net.kano.nully;
 
-import static java.lang.annotation.ElementType.CONSTRUCTOR;
-import static java.lang.annotation.ElementType.METHOD;
-import static java.lang.annotation.ElementType.PACKAGE;
-import static java.lang.annotation.ElementType.TYPE;
 import java.lang.annotation.Retention;
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
+import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.lang.annotation.ElementType;
 
-@Retention(RUNTIME)
-@Target({CONSTRUCTOR, METHOD, TYPE, PACKAGE})
-public @interface SuppressNullChecks {
-    NullCheckLevel[] value() default NullCheckLevel.ALL;
-
-    ;
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface NullyInstrumented {
 }
