@@ -36,12 +36,12 @@ package net.kano.nully;
 import com.intellij.openapi.compiler.CompilerManager;
 import com.intellij.openapi.components.ProjectComponent;
 import com.intellij.openapi.project.Project;
-import net.kano.nully.compilation.RuntimeCheckInserter;
+import net.kano.nully.compilation.NullyCompilerStep;
 
 public class NullyProjectComponent implements ProjectComponent {
     private Project project;
     private CompilerManager compilerManager;
-    private RuntimeCheckInserter nullChecker;
+    private NullyCompilerStep nullChecker;
 
     public NullyProjectComponent(Project project) {
         this.project = project;
@@ -49,7 +49,7 @@ public class NullyProjectComponent implements ProjectComponent {
 
     public void projectOpened() {
         compilerManager = CompilerManager.getInstance(project);
-        nullChecker = new RuntimeCheckInserter(project);
+        nullChecker = new NullyCompilerStep(project);
         compilerManager.addCompiler(nullChecker);
     }
 

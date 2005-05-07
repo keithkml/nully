@@ -31,26 +31,34 @@
  *
  */
 
-package net.kano.nully.analysis;
+package net.kano.nully.inspection;
 
-import com.intellij.psi.PsiJavaFile;
-import com.intellij.psi.PsiMethod;
-import static com.intellij.psi.util.PsiSuperMethodUtil.findSuperMethods;
-import static net.kano.nully.analysis.NullProblemType.INVALID_NONNULL_OVERRIDE;
+import com.intellij.codeInspection.LocalQuickFix;
+import com.intellij.codeInspection.ProblemDescriptor;
+import com.intellij.openapi.project.Project;
+import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.psi.PsiModifierListOwner;
+import com.intellij.psi.PsiElement;
+import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.util.IncorrectOperationException;
+import net.kano.nully.NullyTools;
 
-import java.util.ArrayList;
-import java.util.List;
+class RemoveNonNullQuickFix implements LocalQuickFix {
+    private static final Logger LOGGER
+            = Logger.getInstance(RemoveNonNullQuickFix.class.getName());
+    
+    public String getName() {
+        return "Remove @NonNull";
+    }
 
-public class OtherProblemFinder implements ProblemFinder {
-    public List<PsiNullProblem> findProblems(AnalysisInfo info) {
-        PsiJavaFile orig = info.getFileOrig();
-        IllegalNonnullOverrideVisitor visitor = new IllegalNonnullOverrideVisitor();
-        orig.accept(visitor);
-
-        List<PsiNullProblem> problems = new ArrayList<PsiNullProblem>();
-        for (PsiMethod method : visitor.getBadMethods()) {
-            problems.add(new PsiNullProblem(INVALID_NONNULL_OVERRIDE, method));
+    public void applyFix(Project project, ProblemDescriptor descriptor) {
+        PsiElement el = descriptor.getPsiElement();
+        PsiModifierListOwner owner = PsiTreeUtil.getParentOfType(el,
+                PsiModifierListOwner.class, false);
+        try {
+            NullyTools.getNonnullAnnotation(owner).delete();
+        } catch (IncorrectOperationException e) {
+            LOGGER.error(e);
         }
-        return problems;
     }
 }

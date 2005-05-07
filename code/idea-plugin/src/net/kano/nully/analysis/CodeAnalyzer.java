@@ -223,7 +223,7 @@ public class CodeAnalyzer {
 
     private void addClass(PsiClass cls, List<SootClass> classes) {
         if (cls.isInterface()) return;
-        String name = NullyTools.getRealName(cls);
+        String name = NullyTools.getJavaNameForClass(cls);
         classes.add(Scene.v().getSootClass(name));
         for (PsiClass psiClass : cls.getInnerClasses()) {
             addClass(psiClass, classes);

@@ -1,4 +1,3 @@
-
 package net.kano.nully;
 
 import com.intellij.openapi.diagnostic.Logger;
@@ -13,6 +12,7 @@ import com.intellij.psi.PsiElementFactory;
 import com.intellij.psi.PsiExpression;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiManager;
+import com.intellij.psi.PsiMember;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiMethodCallExpression;
 import com.intellij.psi.PsiModifierList;
@@ -21,13 +21,12 @@ import com.intellij.psi.PsiReferenceExpression;
 import com.intellij.psi.PsiStatement;
 import com.intellij.psi.PsiType;
 import com.intellij.psi.PsiVariable;
-import com.intellij.psi.PsiMember;
-import com.intellij.psi.PsiFile;
 import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.psi.util.PsiSuperMethodUtil;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
 import net.kano.nully.analysis.AnalysisInfo;
+import net.kano.nully.analysis.NullProblemType;
 import net.kano.nully.analysis.PsiNullProblem;
 import net.kano.nully.analysis.soot.MayBeNullTag;
 import soot.SootMethod;
@@ -38,6 +37,7 @@ import soot.tagkit.SourceLnPosTag;
 import soot.tagkit.Tag;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -54,6 +54,7 @@ public final class NullyTools {
     public static final Object METHOD_CHECKNONNULLPARAM = "checkNonNullParameter";
 
     private static final Logger LOGGER = Logger.getInstance(NullyTools.class.getName());
+    public static final String GROUP_NULL_VALUES = "Null values";
 
     private NullyTools() { }
 
@@ -70,7 +71,6 @@ public final class NullyTools {
         if (parent instanceof PsiVariable) {
             return (PsiVariable) parent;
         }
-        //TODO: test fixed  usage of PsiReference -> PsiReferenceExpression
         PsiReferenceExpression ref = PsiTreeUtil.getParentOfType(el,
                         PsiReferenceExpression.class, false);
         PsiVariable variable = null;
@@ -151,20 +151,19 @@ public final class NullyTools {
         return var;
     }
 
-    public static PsiMethod getCalledMethod(PsiElement element) {
+    public static PsiMethod getCalledMethod(@NonNull PsiElement element) {
         PsiMethodCallExpression methCallExp = PsiTreeUtil.getParentOfType(element,
                 PsiMethodCallExpression.class);
-        PsiMethod method = (PsiMethod) methCallExp.getMethodExpression().resolve();
-        return method;
+        return methCallExp.resolveMethod();
     }
 
-    public static boolean hasNonNullAnnotation(PsiModifierListOwner owner) {
+    public static boolean hasNonNullAnnotation(@NonNull PsiModifierListOwner owner) {
         PsiModifierList mods = owner.getModifierList();
         PsiAnnotation anno = mods.findAnnotation(NonNull.class.getName());
         return anno != null;
     }
 
-    public static PsiMethodCallExpression getMethodCallChild(PsiExpression initializer) {
+    public static PsiMethodCallExpression getMethodCallChild(@NonNull PsiExpression initializer) {
         PsiMethodCallExpression call;
         if (initializer instanceof PsiMethodCallExpression) {
             call = (PsiMethodCallExpression) initializer;
@@ -175,21 +174,21 @@ public final class NullyTools {
         return call;
     }
 
-    public static boolean hasMayBeNullTag(Host host) {
+    public static boolean hasMayBeNullTag(@NonNull Host host) {
         return host.hasTag("MayBeNull");
     }
 
-    public static int getOffset(OffsetsTracker tracker,
-            SourceLnPosTag argSrcTag) {
+    public static int getOffset(@NonNull OffsetsTracker tracker,
+            @NonNull SourceLnPosTag argSrcTag) {
         return tracker.getOffset(argSrcTag.startLn(), argSrcTag.startPos());
     }
 
-    public static String getRealName(PsiClass cls) {
+    public static String getJavaNameForClass(@NonNull PsiClass cls) {
         PsiClass outer = cls.getContainingClass();
         if (outer == null) {
             return cls.getQualifiedName();
         } else {
-            return getRealName(outer) + "$" + cls.getName();
+            return getJavaNameForClass(outer) + "$" + cls.getName();
         }
     }
 
@@ -219,7 +218,7 @@ public final class NullyTools {
         }
     }
 
-    public static String getDefaultValue(PsiType returnType) {
+    public static String getDefaultValue(@NonNull PsiType returnType) {
         String val;
         if (returnType.equals(PsiType.BOOLEAN)) {
             val = "false";
@@ -233,11 +232,12 @@ public final class NullyTools {
         return val;
     }
 
-    public static boolean isNonnullCheckMethod(PsiMethod method) {
+    public static boolean isNonnullCheckMethod(@NonNull PsiMethod method) {
         PsiClass cls = method.getContainingClass();
         String name = method.getName();
-        //TODO: request intention to shorten static imported name
-        return cls.getQualifiedName().equals(NonNullTools.class.getName())
+        String clsName = cls.getQualifiedName();
+        if (clsName == null) return false;
+        return clsName.equals(NonNullTools.class.getName())
                 && (name.equals(NullyTools.METHOD_CHECKNONNULLRETURN)
                 || name.equals(METHOD_CHECKNONNULLVALUE)
                 || name.equals(METHOD_CHECKNONNULLPARAM));
@@ -247,50 +247,62 @@ public final class NullyTools {
         return method.getContainingClass().getName() + "." + method.getName();
     }
 
-    public static BadOverrideInfo getBadOverrideInfo(PsiNullProblem psiProblem) {
-        PsiMethod method = (PsiMethod) psiProblem.getElement();
-        PsiMethod badOverride = null;
-        BadOverrideInfo.OverrideType overrideType = null;
+    public static ImportantSuperMethodInfo getBadOverrideInfo(PsiNullProblem psiProblem) {
+        LOGGER.assertTrue(psiProblem.getType() == NullProblemType.INVALID_NONNULL_OVERRIDE);
 
+        PsiMethod method = (PsiMethod) psiProblem.getElement();
+        return getBadOverrideInfo(method);
+
+    }
+
+    public static ImportantSuperMethodInfo getBadOverrideInfo(PsiMethod method) {
         List<PsiMethod> bad = new ArrayList<PsiMethod>();
         for (PsiMethod superm : PsiSuperMethodUtil.findSuperMethods(method)) {
             if (hasNonNullAnnotation(superm)) bad.add(superm);
         }
 
-        for (PsiMethod badMethod : bad) {
-            if (!badMethod.getContainingClass().isInterface()) {
+        return getImportantSuperMethod(method, bad);
+
+    }
+
+    public static ImportantSuperMethodInfo getImportantSuperMethod(PsiMethod method,
+            Collection<PsiMethod> supers) {
+        PsiMethod importantSuper = null;
+        OverrideType overrideType = null;
+
+        for (PsiMethod superm : supers) {
+            if (!superm.getContainingClass().isInterface()) {
                 // we found the real method
-                overrideType = BadOverrideInfo.OverrideType.OVERRIDES;
-                badOverride = badMethod;
+                overrideType = OverrideType.OVERRIDES;
+                importantSuper = superm;
                 break;
             }
         }
-        if (badOverride == null) {
+        if (importantSuper == null) {
             // this method is not implemented in any superclasses
-            overrideType = BadOverrideInfo.OverrideType.IMPLEMENTS;
-            if (bad.size() == 1) {
-                badOverride = bad.get(0);
+            overrideType = OverrideType.IMPLEMENTS;
+            if (supers.size() == 1) {
+                importantSuper = supers.iterator().next();
+
             } else {
-                Collections.sort(bad, new MethodNameComparator());
+                List<PsiMethod> superList = new ArrayList<PsiMethod>(supers);
+                Collections.sort(superList, new MethodNameComparator());
                 Set<PsiMethod> badInImplementsList
-                        = getBadClassesInImplementsList(method, bad);
+                        = getBadClassesInImplementsList(method, supers);
 
                 if (!badInImplementsList.isEmpty()) {
                     // some bad superclass is in the implements list
                     if (badInImplementsList.size() == 1) {
-                        badOverride = badInImplementsList.iterator().next();
+                        importantSuper = badInImplementsList.iterator().next();
                     }
-                }
-                if (badOverride == null) {
-                    badOverride = null;
                 }
             }
         }
-        return new BadOverrideInfo(psiProblem, overrideType, badOverride);
+        return new ImportantSuperMethodInfo(overrideType, importantSuper);
     }
 
     private static Set<PsiMethod> getBadClassesInImplementsList(PsiMethod method,
-            List<PsiMethod> bad) {
+            Collection<PsiMethod> bad) {
         Set<PsiClass> badSuperclasses = new HashSet<PsiClass>();
         for (PsiMethod psiMethod : bad) {
             badSuperclasses.add(psiMethod.getContainingClass());
@@ -304,7 +316,8 @@ public final class NullyTools {
 
         badSuperclasses.retainAll(inImplementsList);
 
-        Set<PsiMethod> badMethodsInImplementsList = new TreeSet<PsiMethod>(new MethodNameComparator());
+        Set<PsiMethod> badMethodsInImplementsList = new TreeSet<PsiMethod>(
+                new MethodNameComparator());
         for (PsiMethod psiMethod : bad) {
             if (badSuperclasses.contains(psiMethod.getContainingClass())) {
                 badMethodsInImplementsList.add(psiMethod);
@@ -327,14 +340,26 @@ public final class NullyTools {
     private static boolean shouldCheckNullsForClass(PsiClass cls) {
         if (hasSuppressNullChecksAnnotation(cls)) return false;
         PsiClass outer = cls.getContainingClass();
-        if (outer == null) {
-            PsiFile containingFile = cls.getContainingFile();
-            if (containingFile instanceof PsiJavaFile) {
-                PsiJavaFile javaFile = (PsiJavaFile) containingFile;
-                javaFile.getPackageStatement().getPackageReference().resolve()
-            }
-            containingFile
-        }
+        if (outer == null) return true;
+        else return shouldCheckNullsForClass(outer);
+
+//        if (outer == null) {
+//            PsiFile containingFile = cls.getContainingFile();
+//            if (containingFile instanceof PsiJavaFile) {
+//                PsiJavaFile javaFile = (PsiJavaFile) containingFile;
+//                javaFile.getPackageStatement().getPackageReference().resolve()
+//            }
+//            containingFile
+//        }
+    }
+
+    @NonNull public static String getUnexpectedNullValueCheckString(@NonNull String oldText) {
+        return NonNullTools.class.getName() + "."
+                + METHOD_CHECKNONNULLVALUE + "(" + oldText + ")";
+    }
+
+    public static PsiAnnotation getNonnullAnnotation(PsiModifierListOwner owner) {
+        return owner.getModifierList().findAnnotation(NonNull.class.getName());
     }
 
     public static class MethodNameComparator implements Comparator<PsiMethod> {

@@ -33,24 +33,30 @@
 
 package net.kano.nully.analysis;
 
-import com.intellij.psi.PsiJavaFile;
+import com.intellij.psi.PsiParameter;
 import com.intellij.psi.PsiMethod;
-import static com.intellij.psi.util.PsiSuperMethodUtil.findSuperMethods;
-import static net.kano.nully.analysis.NullProblemType.INVALID_NONNULL_OVERRIDE;
 
-import java.util.ArrayList;
-import java.util.List;
+public final class ViolatedParameter {
+    private PsiParameter subParam;
+    private PsiMethod superMethod;
+    private PsiParameter superParam;
 
-public class OtherProblemFinder implements ProblemFinder {
-    public List<PsiNullProblem> findProblems(AnalysisInfo info) {
-        PsiJavaFile orig = info.getFileOrig();
-        IllegalNonnullOverrideVisitor visitor = new IllegalNonnullOverrideVisitor();
-        orig.accept(visitor);
+    public ViolatedParameter(PsiParameter subParam, PsiMethod superMethod,
+            PsiParameter superParam) {
+        this.subParam = subParam;
+        this.superMethod = superMethod;
+        this.superParam = superParam;
+    }
 
-        List<PsiNullProblem> problems = new ArrayList<PsiNullProblem>();
-        for (PsiMethod method : visitor.getBadMethods()) {
-            problems.add(new PsiNullProblem(INVALID_NONNULL_OVERRIDE, method));
-        }
-        return problems;
+    public PsiParameter getSubParam() {
+        return subParam;
+    }
+
+    public PsiMethod getSuperMethod() {
+        return superMethod;
+    }
+
+    public PsiParameter getSuperParam() {
+        return superParam;
     }
 }

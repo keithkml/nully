@@ -35,18 +35,18 @@ package net.kano.nully.analysis.soot;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiExpression;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiMethod;
+import com.intellij.psi.PsiMethodCallExpression;
 import com.intellij.psi.PsiParameter;
 import com.intellij.psi.PsiParameterList;
 import com.intellij.psi.PsiVariable;
-import com.intellij.psi.PsiMethodCallExpression;
-import com.intellij.psi.PsiExpression;
 import com.intellij.psi.util.PsiTreeUtil;
 import net.kano.nully.NonNull;
+import net.kano.nully.NullParameterException;
 import net.kano.nully.NullyTools;
 import net.kano.nully.OffsetsTracker;
-import net.kano.nully.NullParameterException;
 import net.kano.nully.UnexpectedNullValueException;
 import net.kano.nully.analysis.AnalysisInfo;
 import soot.Body;
@@ -73,7 +73,6 @@ import soot.jimple.ParameterRef;
 import soot.jimple.Stmt;
 import soot.jimple.StringConstant;
 import soot.jimple.ThrowStmt;
-import soot.jimple.internal.InvokeExprBox;
 import soot.tagkit.SourceLnPosTag;
 import soot.tagkit.Tag;
 import soot.util.Chain;
@@ -154,13 +153,13 @@ public class JimpleMethodPreprocessor {
             if (fixParameterRef(method, body, assignStmt)) return true;
         }
 
-        // STEP 1 - add null checks right after assignment if assignment
+        // STEP 1 - add null checks before assignment if assignment
         //          to @NonNull method call result
         if (assignedValue instanceof InvokeExpr) {
             if (fixAssignmentOfNonNullMethodCall(body, assignStmt)) return true;
         }
 
-        // STEP 2 - add null checks for assignment to @NonNull variable
+        // STEP 2 - add null checks after assignment to @NonNull variable
         if (fixAssignmentToNonNullVariable(body, assignStmt)) return true;
 
         // STEP 3 - would be to check return values for nulls, but we don't need
@@ -451,7 +450,7 @@ public class JimpleMethodPreprocessor {
      * @return the method call which corresponds to the given assignment
      */
     private PsiMethodCallExpression getMethodCallExpression(@NonNull DefinitionStmt assignStmt) {
-        if (!(assignStmt.getRightOpBox() instanceof InvokeExprBox)) return null;
+        if (!(assignStmt.getRightOp() instanceof InvokeExpr)) return null;
 
         // find the method call source tag
         SourceLnPosTag tag = findAssignedValueTag(assignStmt);

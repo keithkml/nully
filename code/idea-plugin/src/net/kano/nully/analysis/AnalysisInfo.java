@@ -58,7 +58,6 @@ public class AnalysisInfo {
         this.tracker = tracker;
     }
 
-
     public PsiJavaFile getFileCopy() {
         return fileCopy;
     }

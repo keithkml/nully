@@ -190,7 +190,7 @@ public class PsiOtherMethodStripper extends PsiRecursiveElementVisitor {
      * @param aClass a class
      */
     private void stripClass(@NonNull PsiClass aClass) {
-        String actualName = NullyTools.getRealName(aClass);
+        String actualName = NullyTools.getJavaNameForClass(aClass);
         try {
             aClass.delete();
             strippedClassesNames.add(actualName);

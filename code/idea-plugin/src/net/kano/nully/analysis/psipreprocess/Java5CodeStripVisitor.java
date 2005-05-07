@@ -75,6 +75,7 @@ class Java5CodeStripVisitor extends PsiRecursiveElementVisitor {
 
     //TODO: generics
     //TODO: methods in enums or children of enums
+    //TODO: keep original copy markings user data for transformed elements
 
     private static final Map<String,String> s_boxingClasses = new HashMap<String, String>(8);
     private static final Map<String,String> s_unboxingMethods = new HashMap<String, String>(8);
@@ -310,7 +311,7 @@ class Java5CodeStripVisitor extends PsiRecursiveElementVisitor {
      */
     private static void transformVarargsCall(@NonNull PsiMethodCallExpression expression) {
         PsiMethod called = expression.resolveMethod();
-        if (!called.isVarArgs()) return;
+        if (called == null || !called.isVarArgs()) return;
 
         PsiExpressionList args = expression.getArgumentList();
         PsiExpression[] exps = args.getExpressions();
