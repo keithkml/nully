@@ -34,6 +34,7 @@
 package net.kano.nully.analysis.soot;
 
 import com.intellij.psi.PsiJavaFile;
+import com.intellij.psi.PsiFile;
 import net.kano.nully.NonNull;
 import polyglot.ast.Node;
 import polyglot.frontend.Compiler;
@@ -47,6 +48,7 @@ import soot.javaToJimple.InitialResolver;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.io.Reader;
 import java.util.Collections;
 import java.util.List;
 
@@ -67,7 +69,7 @@ public class PsiJavaFileClassSource extends ClassSource {
 
     public List resolve(SootClass sc) {
         ExtensionInfo extInfo = new NullyExtensionInfo(TEMP_FILE_NAME,
-                        new StringReader(file.getText()));
+                new PsiFileReaderProvider(file));
 //        polyglot.main.Options options = extInfo.getOptions();
 
 //        options.assertions = true;
@@ -119,5 +121,17 @@ public class PsiJavaFileClassSource extends ClassSource {
         }
 
         return job.ast();
+    }
+
+    private class PsiFileReaderProvider implements ReaderProvider {
+        private final PsiFile file;
+
+        public PsiFileReaderProvider(PsiFile file) {
+            this.file = file;
+        }
+
+        public Reader open() {
+            return new StringReader(file.getText());
+        }
     }
 }

@@ -42,6 +42,10 @@ import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiRecursiveElementVisitor;
 import com.intellij.psi.PsiStatement;
 import com.intellij.psi.PsiClassInitializer;
+import com.intellij.psi.PsiParameter;
+import com.intellij.psi.PsiType;
+import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiMember;
 import com.intellij.util.IncorrectOperationException;
 import com.intellij.openapi.diagnostic.Logger;
 import net.kano.nully.NullyTools;
@@ -49,6 +53,9 @@ import net.kano.nully.NonNull;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collection;
+import java.util.Set;
+import java.util.HashSet;
 
 /**
  * Removes all code from the file which contains the given method, except for
@@ -76,52 +83,66 @@ public class PsiOtherMethodStripper extends PsiRecursiveElementVisitor {
     private static final Logger LOGGER
             = Logger.getInstance(PsiOtherMethodStripper.class.getName());
 
-    //TODO: strip constructors
     //TODO: strip inheritance
 
     /** A list of classes which must not be deleted. */
-    private final List<PsiClass> okayClasses;
-    /** The method to keep. */
-    private final PsiMethod methodCopy;
+    private final Collection<PsiClass> keepClasses;
     /** The names of classes which were stripped. */
     private final List<String> strippedClassesNames = new ArrayList<String>();
+    private final Collection<PsiMember> keepElements;
 
     /**
      * Creates a new PSI other-method stripper.
      *
-     * @param okayClasses a list of classes which should not be stripped
-     * @param methodCopy the method to keep
+     * @param keepElements a list of methods, fields, and initializer blocks to inspect
      */
-    public PsiOtherMethodStripper(@NonNull List<PsiClass> okayClasses, @NonNull PsiMethod methodCopy) {
-        this.okayClasses = okayClasses;
-        this.methodCopy = methodCopy;
+    public PsiOtherMethodStripper(@NonNull Collection<PsiMember> keepElements) {
+        for (PsiElement element : keepElements) {
+            if (!(element instanceof PsiMethod)
+                    && !(element instanceof PsiField)
+                    && !(element instanceof PsiClassInitializer)) {
+                throw new IllegalArgumentException("keepElements contains "
+                        + element + " but keepElements may only be "
+                        + "fields, methods, or initializers");
+            }
+        }
+
+        this.keepClasses = getParentClasses(keepElements);
+        this.keepElements = keepElements;
     }
 
     public void visitClass(PsiClass aClass) {
         super.visitClass(aClass);
 
-        if (!okayClasses.contains(aClass)) stripClass(aClass);
+        if (!keepClasses.contains(aClass)) deleteClass(aClass);
     }
 
     public void visitMethod(PsiMethod method) {
         super.visitMethod(method);
 
-        if (method != methodCopy) stripMethod(method);
+        if (shouldStripElement(method)) stripMethod(method);
+    }
+
+    private boolean shouldStripElement(PsiMember el) {
+        return !keepElements.contains(el);
     }
 
     public void visitClassInitializer(PsiClassInitializer initializer) {
         super.visitClassInitializer(initializer);
-        try {
-            initializer.delete();
-        } catch (IncorrectOperationException e) {
-            LOGGER.error(e);
+
+        if (shouldStripElement(initializer)) {
+            try {
+                initializer.delete();
+            } catch (IncorrectOperationException e) {
+                LOGGER.error(e);
+            }
         }
     }
 
     public void visitField(PsiField field) {
         super.visitField(field);
 
-        transformField(field);
+        if (shouldStripElement(field)) transformField(field);
     }
 
     private static void transformField(@NonNull PsiField field) {
@@ -170,16 +191,48 @@ public class PsiOtherMethodStripper extends PsiRecursiveElementVisitor {
             }
         }
 
-        // insert the dummy return value
-        String val = NullyTools.getDefaultValue(method.getReturnType());
-        try {
-            PsiElementFactory factory = body.getManager()
-                    .getElementFactory();
-            body.addAfter(factory.createStatementFromText("return "
-                    + val + ";", body),
-                    body.getLBrace());
-        } catch (IncorrectOperationException e) {
-            LOGGER.error(NullyTools.getQualifiedMemberName(method), e);
+        PsiElementFactory factory = body.getManager()
+                .getElementFactory();
+
+        // add a super call to the constructor if necessary
+        if (method.isConstructor()) {
+            PsiClass cls = method.getContainingClass();
+            PsiMethod[] constructors = cls.getConstructors();
+            if (constructors.length > 0) {
+                PsiMethod someConstructor = constructors[0];
+                StringBuilder arglist = new StringBuilder(100);
+                boolean first = false;
+                PsiParameter[] parameters = someConstructor.getParameterList()
+                        .getParameters();
+                if (parameters.length > 0) {
+                    for (PsiParameter param : parameters) {
+                        if (first) {
+                            first = false;
+                        } else {
+                            arglist.append(", ");
+                        }
+
+                        PsiType type = param.getType();
+                        arglist.append("(" + type.getCanonicalText() + ") null");
+                    }
+                    try {
+                        body.add(factory.createStatementFromText("super("
+                                + arglist.toString() + ")", body));
+                    } catch (IncorrectOperationException e) {
+                        LOGGER.error(e);
+                    }
+                }
+            }
+        } else {
+            // insert a dummy return value
+            String val = NullyTools.getDefaultValue(method.getReturnType());
+            try {
+                body.addAfter(factory.createStatementFromText("return "
+                        + val + ";", body),
+                        body.getLBrace());
+            } catch (IncorrectOperationException e) {
+                LOGGER.error(NullyTools.getQualifiedMemberName(method), e);
+            }
         }
     }
 
@@ -189,13 +242,14 @@ public class PsiOtherMethodStripper extends PsiRecursiveElementVisitor {
      *
      * @param aClass a class
      */
-    private void stripClass(@NonNull PsiClass aClass) {
+    private void deleteClass(@NonNull PsiClass aClass) {
         String actualName = NullyTools.getJavaNameForClass(aClass);
         try {
             aClass.delete();
             strippedClassesNames.add(actualName);
         } catch (IncorrectOperationException e) {
-            LOGGER.error(actualName, e);
+            LOGGER.debug("Error deleting " + actualName);
+            LOGGER.debug(e);
         }
     }
 
@@ -205,5 +259,18 @@ public class PsiOtherMethodStripper extends PsiRecursiveElementVisitor {
      */
     public @NonNull List<String> getStrippedClassesNames() {
         return strippedClassesNames;
+    }
+
+    private static Set<PsiClass> getParentClasses(Collection<PsiMember> toInspect) {
+        Set<PsiClass> okayClasses = new HashSet<PsiClass>();
+        for (PsiMember element : toInspect) {
+            PsiClass containingClass = element.getContainingClass();
+            PsiClass add = containingClass;
+            while (add != null) {
+                okayClasses.add(add);
+                add = add.getContainingClass();
+            }
+        }
+        return okayClasses;
     }
 }

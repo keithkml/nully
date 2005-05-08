@@ -31,38 +31,43 @@
  *
  */
 
-package net.kano.nully.analysis.soot;
+package net.kano.nully.inspection;
 
-import net.kano.nully.NonNull;
-import polyglot.frontend.FileSource;
+import com.intellij.codeInspection.InspectionManager;
+import com.intellij.codeInspection.ProblemDescriptor;
+import com.intellij.psi.PsiJavaFile;
+import com.intellij.psi.PsiMember;
+import net.kano.nully.analysis.AnalysisInfo;
+import net.kano.nully.analysis.CodeAnalyzer;
+import net.kano.nully.analysis.NullProblemFinder;
+import net.kano.nully.analysis.ProblemFinder;
+import net.kano.nully.analysis.psipreprocess.PreparerForSoot;
 
-import java.io.IOException;
-import java.io.Reader;
+import java.util.Arrays;
+import java.util.List;
 
-/**
- * A {@code FileSource} which represents a virtual file whose contents are
- * provided by a {@code Reader}.
- */
-public class ReaderFileSource extends FileSource {
-    private final ReaderProvider reader;
-    private final String fileName;
+public class ProblemFinderAndHighlighter {
+    public static ProblemDescriptor[] findNullProblems(PsiJavaFile jfile,
+            List<PsiMember> toInspect, InspectionManager manager) {
+        AnalysisInfo info = new AnalysisInfo();
+        PreparerForSoot preparer = new PreparerForSoot(info);
+        preparer.prepareForElementsAnalysis(jfile, toInspect);
 
-    public ReaderFileSource(@NonNull String fileName, @NonNull ReaderProvider reader)
-            throws IOException {
-        // we have to call super(".") because it checks to see if the file
-        // exists
-        super(".");
+        CodeAnalyzer analyzer = new CodeAnalyzer();
+        List<ProblemDescriptor> problems;
+        try {
+            analyzer.analyze(info);
 
-        this.fileName = fileName;
-        this.reader = reader;
-    }
+            ProblemHighlighter highlighter = new ProblemHighlighter();
+            problems = highlighter.highlightProblems(info, manager,
+                    Arrays.<ProblemFinder>asList(new NullProblemFinder()));
 
-    public String name() { return fileName; }
+        } finally {
+            analyzer.resetSoot();
+            preparer.removeCopy(jfile);
+        }
 
-    public String path() { return fileName; }
-
-    public Reader open() throws IOException {
-        return reader.open();
+        if (problems.isEmpty()) return null;
+        else return problems.toArray(new ProblemDescriptor[0]);
     }
 }
-

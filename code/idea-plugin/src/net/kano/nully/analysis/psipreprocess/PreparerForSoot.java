@@ -33,25 +33,21 @@
 
 package net.kano.nully.analysis.psipreprocess;
 
-import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiJavaFile;
-import com.intellij.psi.PsiMethod;
+import com.intellij.psi.PsiMember;
 import net.kano.nully.NonNull;
 import net.kano.nully.NullyTools;
 import net.kano.nully.analysis.AnalysisInfo;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 /**
  * Provides methods which prepare Java code to be passed to Soot's parser.
  */
 public class PreparerForSoot {
-    private static final Logger LOGGER
-            = Logger.getInstance(PreparerForSoot.class.getName());
-
     //TODO: strip erroneous lines
     private final AnalysisInfo info;
 
@@ -59,19 +55,11 @@ public class PreparerForSoot {
         this.info = info;
     }
 
-    /**
-     * Stores a prepared version of the given Java file, in the
-     * {@code AnalysisInfo} object associated with this preparer. The prepared
-     * version will only contain code relevant to {@code method}.
-     *
-     * @param jfile a Java file
-     * @param method the method to be analyzed
-     */
-    public void prepareForMethodAnalysis(@NonNull PsiJavaFile jfile,
-            @NonNull PsiMethod method) {
+    public void prepareForElementsAnalysis(@NonNull PsiJavaFile jfile,
+            @NonNull Collection<PsiMember> toInspect) {
         makeMarkedCopy(jfile);
-        strip(NullyTools.getCopiedElement(method));
-        stripJava5Code(info.getFileCopy());
+        strip(toInspect);
+        stripJava5Code(NullyTools.getCopiedElement(jfile));
     }
 
     /**
@@ -95,23 +83,14 @@ public class PreparerForSoot {
         return fileCopy;
     }
 
-    /**
-     * Strips other methods from the given method's containing file by executing
-     * a {@link PsiOtherMethodStripper}.
-     *
-     * @param method the method to strip
-     */
-    private void strip(@NonNull PsiMethod method) {
-        PsiClass containingClass = method.getContainingClass();
-        List<PsiClass> okayClasses = new ArrayList<PsiClass>();
-        PsiClass add = containingClass;
-        while (add != null) {
-            okayClasses.add(add);
-            add = add.getContainingClass();
+    private void strip(@NonNull Collection<PsiMember> toInspect) {
+        List<PsiMember> toInspectCopies = new ArrayList<PsiMember>();
+        for (PsiMember psiMember : toInspect) {
+            toInspectCopies.add(NullyTools.getCopiedElement(psiMember));
         }
-        PsiJavaFile file = info.getFileCopy();
-        PsiOtherMethodStripper stripper = new PsiOtherMethodStripper(okayClasses, method);
-        file.accept(stripper);
+        PsiJavaFile fileCopy = info.getFileCopy();
+        PsiOtherMethodStripper stripper = new PsiOtherMethodStripper(toInspectCopies);
+        fileCopy.accept(stripper);
         info.addStrippedClassNames(stripper.getStrippedClassesNames());
     }
 

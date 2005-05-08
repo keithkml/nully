@@ -39,17 +39,19 @@ import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiField;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiJavaFile;
+import com.intellij.psi.PsiMember;
 import com.intellij.psi.PsiMethod;
-import net.kano.nully.analysis.AnalysisInfo;
-import net.kano.nully.analysis.CodeAnalyzer;
-import net.kano.nully.analysis.NullValueProblemFinder;
-import net.kano.nully.analysis.ProblemFinder;
-import net.kano.nully.analysis.psipreprocess.PreparerForSoot;
+import com.intellij.psi.PsiElement;
+import static net.kano.nully.inspection.ProblemFinderAndHighlighter.findNullProblems;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class NullProblemInspector extends AbstractNullyInspection {
+    //TODO: whole-file checks?
+    
     public String getDisplayName() {
         return "Possibly null value in @NonNull context";
     }
@@ -60,43 +62,38 @@ public class NullProblemInspector extends AbstractNullyInspection {
 
     public ProblemDescriptor[] checkClass(PsiClass aClass,
             InspectionManager manager, boolean isOnTheFly) {
-        //TODO: check initializers
-        return super.checkClass(aClass, manager, isOnTheFly);
+        PsiJavaFile jfile = getParentJavaFile(aClass);
+        if (jfile == null) return null;
+
+        List<PsiMember> okayEls = new ArrayList<PsiMember>();
+        Collections.addAll(okayEls, aClass.getInitializers());
+
+        return findNullProblems(jfile, okayEls, manager);
     }
 
     public ProblemDescriptor[] checkField(PsiField field,
             InspectionManager manager, boolean isOnTheFly) {
-        //TODO: check field initializer
-        return super.checkField(field, manager, isOnTheFly);
+        PsiJavaFile jfile = getParentJavaFile(field);
+        if (jfile == null) return null;
+
+        return findNullProblems(jfile,
+                Arrays.<PsiMember>asList(field), manager);
     }
 
     public ProblemDescriptor[] checkMethod(PsiMethod method,
             InspectionManager manager, boolean isOnTheFly) {
-        // setup the method information
+        PsiJavaFile jfile = getParentJavaFile(method);
+        if (jfile == null) return null;
 
-        PsiFile container = method.getContainingFile();
-        if (!(container instanceof PsiJavaFile)) return null;
-        PsiJavaFile jfile = (PsiJavaFile) container;
+        return findNullProblems(jfile,
+                Arrays.<PsiMember>asList(method), manager);
+    }
 
-        AnalysisInfo info = new AnalysisInfo();
-        PreparerForSoot preparer = new PreparerForSoot(info);
-        preparer.prepareForMethodAnalysis(jfile, method);
-
-        CodeAnalyzer analyzer = new CodeAnalyzer();
-        List<ProblemDescriptor> problems;
-        try {
-            analyzer.analyze(info);
-
-            ProblemHighlighter highlighter = new ProblemHighlighter();
-            problems = highlighter.highlightProblems(info, manager,
-                    Arrays.<ProblemFinder>asList(new NullValueProblemFinder()));
-
-        } finally {
-            analyzer.resetSoot();
-            preparer.removeCopy(jfile);
-        }
-
-        if (problems.isEmpty()) return null;
-        else return problems.toArray(new ProblemDescriptor[0]);
+    private static PsiJavaFile getParentJavaFile(PsiElement el) {
+        PsiFile container = el.getContainingFile();
+        PsiJavaFile jfile;
+        if (!(container instanceof PsiJavaFile)) jfile = null;
+        else jfile = (PsiJavaFile) container;
+        return jfile;
     }
 }

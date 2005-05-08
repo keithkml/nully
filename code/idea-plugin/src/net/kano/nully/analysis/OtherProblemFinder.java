@@ -36,13 +36,14 @@ package net.kano.nully.analysis;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiMethod;
 import static com.intellij.psi.util.PsiSuperMethodUtil.findSuperMethods;
+import net.kano.nully.NonNull;
 import static net.kano.nully.analysis.NullProblemType.INVALID_NONNULL_OVERRIDE;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class OtherProblemFinder implements ProblemFinder {
-    public List<PsiNullProblem> findProblems(AnalysisInfo info) {
+    @NonNull public List<PsiNullProblem> findProblems(@NonNull AnalysisInfo info) {
         PsiJavaFile orig = info.getFileOrig();
         IllegalNonnullOverrideVisitor visitor = new IllegalNonnullOverrideVisitor();
         orig.accept(visitor);

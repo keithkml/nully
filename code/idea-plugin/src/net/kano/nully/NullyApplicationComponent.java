@@ -43,6 +43,7 @@ public class NullyApplicationComponent implements ApplicationComponent, Inspecti
     //TODO: detect when null check is needed for non-@NonNull parameter
     //TODO: detect when method only returns non-null
     //TODO: use custom keys for each AnalysisInfo
+    //TODO: detect NullyInstrumented annotations
 
     public String getComponentName() {
         return "Nully";

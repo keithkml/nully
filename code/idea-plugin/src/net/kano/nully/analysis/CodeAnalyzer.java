@@ -104,6 +104,7 @@ public class CodeAnalyzer {
 
         PsiJavaFile fileCopy = info.getFileCopy();
         try {
+            // avoid unnecessarily referencing classes which can't be resolved
             CodeStyleManager.getInstance(fileCopy.getManager()).optimizeImports(fileCopy);
         } catch (IncorrectOperationException e) {
             throw new IllegalStateException(e);

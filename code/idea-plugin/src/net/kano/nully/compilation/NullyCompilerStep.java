@@ -76,7 +76,7 @@ import static net.kano.nully.analysis.NullProblemType.INVALID_NONNULL_OVERRIDE;
 import static net.kano.nully.analysis.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
 import static net.kano.nully.analysis.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
 import static net.kano.nully.analysis.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
-import net.kano.nully.analysis.NullValueProblemFinder;
+import net.kano.nully.analysis.NullProblemFinder;
 import net.kano.nully.analysis.OtherProblemFinder;
 import net.kano.nully.analysis.ProblemFinder;
 import net.kano.nully.analysis.PsiNullProblem;
@@ -173,7 +173,7 @@ public class NullyCompilerStep implements JavaSourceTransformingCompiler {
         CodeAnalyzer analyzer = new CodeAnalyzer();
         analyzer.analyze(info);
 
-        ProblemFinder finder = new NullValueProblemFinder();
+        ProblemFinder finder = new NullProblemFinder();
         List<PsiNullProblem> problems = new ArrayList<PsiNullProblem>();
         problems.addAll(finder.findProblems(info));
         ProblemFinder otherFinder = new OtherProblemFinder();
