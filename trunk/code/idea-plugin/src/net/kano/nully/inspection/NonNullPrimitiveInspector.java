@@ -65,7 +65,7 @@ public class NonNullPrimitiveInspector extends AbstractNullyInspection {
 
     public ProblemDescriptor[] checkClass(PsiClass aClass,
             InspectionManager manager, boolean isOnTheFly) {
-        NonNullPrimitiveDeclarationVisitor visitor = new NonNullPrimitiveDeclarationVisitor();
+        IllegalNonNullDeclarationVisitor visitor = new IllegalNonNullDeclarationVisitor();
         aClass.accept(visitor);
         List<ProblemDescriptor> problems = new ArrayList<ProblemDescriptor>();
         for (PsiModifierListOwner element : visitor.getBadElements()) {

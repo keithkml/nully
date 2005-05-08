@@ -42,6 +42,7 @@ import com.intellij.psi.PsiMethodCallExpression;
 import com.intellij.psi.PsiParameter;
 import com.intellij.psi.PsiParameterList;
 import com.intellij.psi.PsiVariable;
+import com.intellij.psi.PsiMember;
 import com.intellij.psi.util.PsiTreeUtil;
 import net.kano.nully.NonNull;
 import net.kano.nully.NullParameterException;
@@ -106,19 +107,19 @@ public class JimpleMethodPreprocessor {
      */
     public void preprocessCode() {
         for (SootMethod method : info.getSootMethods()) {
-            PsiMethod psiMethod = NullyTools.getPsiMethod(info, method);
-            if (psiMethod == null) continue;
-            preprocessMethod(psiMethod, method.retrieveActiveBody());
+            PsiMember member = NullyTools.getPsiMemberCopy(info, method);
+            if (member == null) continue;
+            preprocessMethod(member, method.retrieveActiveBody());
         }
     }
 
     /**
      * Preprocesses the given method.
      *
-     * @param psiMethod the PSI method
+     * @param member the PSI method
      * @param body the method body
      */
-    private void preprocessMethod(@NonNull PsiMethod psiMethod, @NonNull Body body) {
+    private void preprocessMethod(@NonNull PsiMember member, @NonNull Body body) {
         // keep iterating through the code until no more changes occur, up to
         // 1000000 times
         boolean changed = true;
@@ -127,7 +128,7 @@ public class JimpleMethodPreprocessor {
             for (Unit unit : (Collection<Unit>)body.getUnits()) {
                 if (unit instanceof DefinitionStmt) {
                     DefinitionStmt defStmt = (DefinitionStmt) unit;
-                    changed = fixAssignment(psiMethod, body, defStmt);
+                    changed = fixAssignment(member, body, defStmt);
                 }
                 if (changed) break;
             }
@@ -138,19 +139,19 @@ public class JimpleMethodPreprocessor {
      * Adds appropriate null check "assertions" after assignment to @NonNull
      * variables, to reflect the runtime checks that the precompiler inserts.
      *
-     * @param method the method
+     * @param member the method
      * @param body the method body
      * @param assignStmt an assignment statement
      * @return whether the code in {@code body} was changed
      */
-    private boolean fixAssignment(@NonNull PsiMethod method,
+    private boolean fixAssignment(@NonNull PsiMember member,
             @NonNull Body body, @NonNull DefinitionStmt assignStmt) {
         Value assignedValue = assignStmt.getRightOpBox().getValue();
 
         // STEP 0 - add null checks at the top of the method for @NonNull
-        //          parameters
+        //          parameters (after the parameter ref assignment)
         if (assignedValue instanceof ParameterRef) {
-            if (fixParameterRef(method, body, assignStmt)) return true;
+            if (fixParameterRef(member, body, assignStmt)) return true;
         }
 
         // STEP 1 - add null checks before assignment if assignment
@@ -173,22 +174,25 @@ public class JimpleMethodPreprocessor {
      * Adds a null check at the top of the given method to throw an exception if
      * the given parameter is null, if the parameter is marked as non-null.
      *
-     * @param method a method
+     * @param memberCopy a method
      * @param body a method body
      * @param assignStmt an assignment statement which assigns a parameter
      *        reference to a parameter local
      * @return whether a null check was added
      */
-    private boolean fixParameterRef(@NonNull PsiMethod method, @NonNull Body body,
+    private boolean fixParameterRef(@NonNull PsiMember memberCopy, @NonNull Body body,
             @NonNull DefinitionStmt assignStmt) {
+        if (!(memberCopy instanceof PsiMethod)) return false;
+        PsiMethod method = (PsiMethod) memberCopy;
+
         // find the referenced parameter
         ParameterRef ref = (ParameterRef) assignStmt.getRightOp();
         int paramIndex = ref.getIndex();
 
-        //TODO: deal with varargs in parameter lookup
         // find the corresponding PsiParameter to the method
         PsiParameterList parameterList = method.getParameterList();
-        PsiParameter paramCopy = parameterList.getParameters()[paramIndex];
+        PsiParameter[] params = parameterList.getParameters();
+        PsiParameter paramCopy = params[paramIndex];
         PsiParameter param = NullyTools.getOriginalElement(paramCopy);
         if (!NullyTools.hasNonNullAnnotation(param)) return false;
 
@@ -222,6 +226,7 @@ public class JimpleMethodPreprocessor {
 
         // find the called method
         PsiMethod referencedMethod = call.resolveMethod();
+        if (referencedMethod == null) return false;
         PsiMethod referencedMethodOrig = NullyTools.getOriginalElement(referencedMethod);
         if (referencedMethodOrig != null) referencedMethod = referencedMethodOrig;
 
@@ -319,6 +324,7 @@ public class JimpleMethodPreprocessor {
             // copy tags over
             copyStmt.getRightOpBox().addAllTagsOf(checkedStmt.getRightOpBox());
             copyStmt.addTag(new FixedNullAssignmentTag());
+            copyStmt.addAllTagsOf(checkedStmt);
 
             // the value holder is now the new local
             holder = newLocal;

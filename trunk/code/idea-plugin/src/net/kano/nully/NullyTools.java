@@ -51,7 +51,7 @@ public final class NullyTools {
 
     public static final String METHOD_CHECKNONNULLRETURN = "checkNonNullReturn";
     public static final String METHOD_CHECKNONNULLVALUE = "checkNonNullValue";
-    public static final Object METHOD_CHECKNONNULLPARAM = "checkNonNullParameter";
+    public static final String METHOD_CHECKNONNULLPARAM = "checkNonNullParameter";
 
     private static final Logger LOGGER = Logger.getInstance(NullyTools.class.getName());
     public static final String GROUP_NULL_VALUES = "Null values";
@@ -126,14 +126,14 @@ public final class NullyTools {
         return fileCopy;
     }
 
-    public static PsiMethod getPsiMethod(AnalysisInfo info, SootMethod method) {
+    public static PsiMember getPsiMemberCopy(AnalysisInfo info, SootMethod method) {
         OffsetsTracker tracker = info.getTracker();
         PsiJavaFile fileCopy = info.getFileCopy();
         SourceLnPosTag srcTag = getSourceTag(method);
         if (srcTag == null) return null;
         PsiElement el = tracker.getElementAtPosition(fileCopy, srcTag);
         if (el == null) return null;
-        return PsiTreeUtil.getParentOfType(el, PsiMethod.class);
+        return PsiTreeUtil.getParentOfType(el, PsiMember.class);
     }
 
     public static SourceLnPosTag getSourceTag(Host host) {
@@ -326,18 +326,19 @@ public final class NullyTools {
         return badMethodsInImplementsList;
     }
 
-    public static boolean hasSuppressNullChecksAnnotation(PsiModifierListOwner psiMethod) {
-        PsiModifierList mods = psiMethod.getModifierList();
+    public static boolean hasSuppressNullChecksAnnotation(@NonNull PsiModifierListOwner member) {
+        PsiModifierList mods = member.getModifierList();
         return mods.findAnnotation(SuppressNullChecks.class.getName()) != null;
     }
 
-    public static boolean shouldCheckNulls(PsiMethod psiMethod) {
-        if (psiMethod == null) return false;
-        if (hasSuppressNullChecksAnnotation(psiMethod)) return false;
-        return shouldCheckNullsForClass(psiMethod.getContainingClass());
+    public static boolean shouldCheckNulls(@NonNull PsiMember member) {
+        if (hasSuppressNullChecksAnnotation(member)) return false;
+        PsiClass outer = member.getContainingClass();
+        if (outer == null) return true;
+        else return shouldCheckNulls(outer);
     }
 
-    private static boolean shouldCheckNullsForClass(PsiClass cls) {
+    private static boolean shouldCheckNullsForClass(@NonNull PsiClass cls) {
         if (hasSuppressNullChecksAnnotation(cls)) return false;
         PsiClass outer = cls.getContainingClass();
         if (outer == null) return true;
@@ -358,9 +359,10 @@ public final class NullyTools {
                 + METHOD_CHECKNONNULLVALUE + "(" + oldText + ")";
     }
 
-    public static PsiAnnotation getNonnullAnnotation(PsiModifierListOwner owner) {
+    public static PsiAnnotation getNonnullAnnotation(@NonNull PsiModifierListOwner owner) {
         return owner.getModifierList().findAnnotation(NonNull.class.getName());
     }
+
 
     public static class MethodNameComparator implements Comparator<PsiMethod> {
         public int compare(PsiMethod method, PsiMethod method1) {

@@ -1,7 +1,9 @@
 package net.kano.nully.analysis;
 
+import net.kano.nully.NonNull;
+
 import java.util.List;
 
 public interface ProblemFinder {
-    List<PsiNullProblem> findProblems(AnalysisInfo info);
+    @NonNull List<PsiNullProblem> findProblems(@NonNull AnalysisInfo info);
 }

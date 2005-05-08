@@ -1,0 +1,19 @@
+<!DOCTYPE idea-plugin PUBLIC "Plugin/DTD" "http://plugins.intellij.net/plugin.dtd">
+<idea-plugin>
+  <name>Nully Checker</name>
+  <description></description>
+  <version>0.1</version>
+  <vendor>Keith Lea</vendor>
+  <idea-version since-build="3116"/>
+
+  <application-components>
+    <component>
+      <implementation-class>net.kano.nully.NullyApplicationComponent</implementation-class>
+    </component>
+  </application-components>
+  <project-components>
+    <component>
+      <implementation-class>net.kano.nully.NullyProjectComponent</implementation-class>
+    </component>
+  </project-components>
+</idea-plugin>

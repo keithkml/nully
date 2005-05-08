@@ -33,6 +33,7 @@
 
 package net.kano.nully.analysis.soot;
 
+import net.kano.nully.NonNull;
 import polyglot.frontend.FileSource;
 import polyglot.frontend.Job;
 import polyglot.frontend.Pass;
@@ -45,17 +46,17 @@ import soot.javaToJimple.StrictFPPropagator;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.Reader;
 import java.util.Collections;
 import java.util.List;
 
 public class NullyExtensionInfo extends soot.javaToJimple.jj.ExtensionInfo {
     private final String fileName;
-    private final Reader reader;
+    private final ReaderProvider provider;
 
-    public NullyExtensionInfo(String fileName, Reader reader) {
+    public NullyExtensionInfo(@NonNull String fileName, 
+            @NonNull ReaderProvider provider) {
         this.fileName = fileName;
-        this.reader = reader;
+        this.provider = provider;
     }
 
     public List passes(Job job) {
@@ -78,13 +79,14 @@ public class NullyExtensionInfo extends soot.javaToJimple.jj.ExtensionInfo {
     }
 
     private class SingleFileSourceLoader extends SourceLoader {
+
         public SingleFileSourceLoader() {
             super(NullyExtensionInfo.this, Collections.EMPTY_LIST);
         }
 
         public FileSource fileSource(String fileName) throws IOException {
             if (fileName.equals(NullyExtensionInfo.this.fileName)) {
-                return new ReaderFileSource(fileName, reader);
+                return new ReaderFileSource(fileName, provider);
             } else {
                 throw new FileNotFoundException(fileName);
             }

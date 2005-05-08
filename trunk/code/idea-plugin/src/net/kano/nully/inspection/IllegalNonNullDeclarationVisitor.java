@@ -31,38 +31,50 @@
  *
  */
 
-package net.kano.nully.analysis.soot;
+package net.kano.nully.inspection;
 
-import net.kano.nully.NonNull;
-import polyglot.frontend.FileSource;
+import com.intellij.psi.PsiLocalVariable;
+import com.intellij.psi.PsiMethod;
+import com.intellij.psi.PsiModifierListOwner;
+import com.intellij.psi.PsiParameter;
+import com.intellij.psi.PsiPrimitiveType;
+import com.intellij.psi.PsiRecursiveElementVisitor;
+import com.intellij.psi.PsiType;
+import net.kano.nully.NullyTools;
 
-import java.io.IOException;
-import java.io.Reader;
+import java.util.ArrayList;
+import java.util.List;
 
-/**
- * A {@code FileSource} which represents a virtual file whose contents are
- * provided by a {@code Reader}.
- */
-public class ReaderFileSource extends FileSource {
-    private final ReaderProvider reader;
-    private final String fileName;
+public class IllegalNonNullDeclarationVisitor extends PsiRecursiveElementVisitor {
+    private List<PsiModifierListOwner> badElements = new ArrayList<PsiModifierListOwner>();
 
-    public ReaderFileSource(@NonNull String fileName, @NonNull ReaderProvider reader)
-            throws IOException {
-        // we have to call super(".") because it checks to see if the file
-        // exists
-        super(".");
 
-        this.fileName = fileName;
-        this.reader = reader;
+    public void visitMethod(PsiMethod method) {
+        super.visitMethod(method);
+
+        if (!method.isConstructor()
+                && checkNonNullPrimitive(method, method.getReturnType())) {
+            badElements.add(method);
+        }
     }
 
-    public String name() { return fileName; }
+    public void visitParameter(PsiParameter parameter) {
+        super.visitParameter(parameter);
 
-    public String path() { return fileName; }
+        if (checkNonNullPrimitive(parameter, parameter.getType())) badElements.add(parameter);
+    }
 
-    public Reader open() throws IOException {
-        return reader.open();
+    public void visitLocalVariable(PsiLocalVariable variable) {
+        super.visitLocalVariable(variable);
+        
+        if (checkNonNullPrimitive(variable, variable.getType())) badElements.add(variable);
+    }
+
+    private boolean checkNonNullPrimitive(PsiModifierListOwner owner, PsiType type) {
+        return type instanceof PsiPrimitiveType && NullyTools.hasNonNullAnnotation(owner);
+    }
+
+    public List<PsiModifierListOwner> getBadElements() {
+        return badElements;
     }
 }
-
