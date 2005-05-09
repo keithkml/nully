@@ -31,38 +31,38 @@
  *
  */
 
-package net.kano.nully.analysis.nulls.soot;
+package net.kano.nully.analysis.nulls.psipreprocess;
 
-import net.kano.nully.NonNull;
-import polyglot.frontend.FileSource;
+import com.intellij.psi.PsiRecursiveElementVisitor;
+import com.intellij.psi.PsiMethod;
+import com.intellij.psi.PsiParameter;
+import com.intellij.psi.PsiTypeElement;
+import com.intellij.psi.PsiEllipsisType;
+import com.intellij.psi.PsiElementFactory;
+import com.intellij.psi.PsiArrayType;
+import com.intellij.util.IncorrectOperationException;
+import com.intellij.openapi.diagnostic.Logger;
 
-import java.io.IOException;
-import java.io.Reader;
+public class Java5CodeStripVisitorSecondPass extends PsiRecursiveElementVisitor {
+    private static final Logger LOGGER
+            = Logger.getInstance(Java5CodeStripVisitorSecondPass.class.getName());
 
-/**
- * A {@code FileSource} which represents a virtual file whose contents are
- * provided by a {@code Reader}.
- */
-public class ReaderFileSource extends FileSource {
-    private final ReaderProvider reader;
-    private final String fileName;
+    public void visitMethod(PsiMethod method) {
+        super.visitMethod(method);
 
-    public ReaderFileSource(@NonNull String fileName, @NonNull ReaderProvider reader)
-            throws IOException {
-        // we have to call super(".") because it checks to see if the file
-        // exists
-        super(".");
+        if (!method.isVarArgs()) return;
 
-        this.fileName = fileName;
-        this.reader = reader;
-    }
-
-    public String name() { return fileName; }
-
-    public String path() { return fileName; }
-
-    public Reader open() throws IOException {
-        return reader.open();
+        PsiParameter[] params = method.getParameterList().getParameters();
+        PsiParameter varargParam = params[params.length - 1];
+        PsiTypeElement origTypeEl = varargParam.getTypeElement();
+        PsiEllipsisType origType = (PsiEllipsisType) origTypeEl.getType();
+        PsiElementFactory factory = method.getManager().getElementFactory();
+        PsiArrayType newType = new PsiArrayType(origType.getComponentType());
+        PsiTypeElement newTypeEl = factory.createTypeElement(newType);
+        try {
+            origTypeEl.replace(newTypeEl);
+        } catch (IncorrectOperationException e) {
+            LOGGER.error(e);
+        }
     }
 }
-

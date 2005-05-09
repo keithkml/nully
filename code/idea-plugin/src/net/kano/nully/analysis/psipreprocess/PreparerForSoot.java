@@ -31,14 +31,14 @@
  *
  */
 
-package net.kano.nully.analysis.psipreprocess;
+package net.kano.nully.analysis.nulls.psipreprocess;
 
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiMember;
 import net.kano.nully.NonNull;
 import net.kano.nully.NullyTools;
-import net.kano.nully.analysis.AnalysisInfo;
+import net.kano.nully.analysis.AnalysisContext;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -49,26 +49,31 @@ import java.util.List;
  */
 public class PreparerForSoot {
     //TODO: strip erroneous lines
-    private final AnalysisInfo info;
+    private final AnalysisContext context;
 
-    public PreparerForSoot(@NonNull AnalysisInfo info) {
-        this.info = info;
+    public PreparerForSoot(@NonNull AnalysisContext context) {
+        this.context = context;
+    }
+
+    public void prepareForFileAnalysis(@NonNull PsiJavaFile jfile) {
+        makeMarkedCopy(jfile);
+        stripJava5Code(context.getCopiedElement(jfile));
     }
 
     public void prepareForElementsAnalysis(@NonNull PsiJavaFile jfile,
             @NonNull Collection<PsiMember> toInspect) {
         makeMarkedCopy(jfile);
         strip(toInspect);
-        stripJava5Code(NullyTools.getCopiedElement(jfile));
+        stripJava5Code(context.getCopiedElement(jfile));
     }
 
     /**
-     * Makes a copy of the given file, and stores it in the {@code AnalysisInfo}
+     * Makes a copy of the given file, and stores it in the {@code AnalysisContext}
      * associated with this preparer. Each element of the original tree will
      * have a reference to the corresponding copied elemnt, stored under the
-     * user data key {@link NullyTools#KEY_COPY}. Each element of the copy will
+     * user data key {@link AnalysisContext#getCopyKey()}. Each element of the copy will
      * have a corresponding reference to the original element under the key
-     *  {@link NullyTools#KEY_ORIGINAL}.
+     *  {@link AnalysisContext#getOriginalKey()}.
      * <br /><br />
      * The given file is also set as the "original file" property of the
      * associated {@code AnalysisInfo}.
@@ -77,21 +82,22 @@ public class PreparerForSoot {
      * @return the copy
      */
     public @NonNull PsiJavaFile makeMarkedCopy(@NonNull PsiJavaFile jfile) {
-        info.setFileOrig(jfile);
-        PsiJavaFile fileCopy = NullyTools.getMarkedCopy(jfile);
-        info.setFileCopy(fileCopy);
+        context.setFileOrig(jfile);
+        PsiJavaFile fileCopy = NullyTools.getMarkedCopy(jfile,
+                context.getOriginalKey(), context.getCopyKey());
+        context.setFileCopy(fileCopy);
         return fileCopy;
     }
 
     private void strip(@NonNull Collection<PsiMember> toInspect) {
         List<PsiMember> toInspectCopies = new ArrayList<PsiMember>();
         for (PsiMember psiMember : toInspect) {
-            toInspectCopies.add(NullyTools.getCopiedElement(psiMember));
+            toInspectCopies.add(context.getCopiedElement(psiMember));
         }
-        PsiJavaFile fileCopy = info.getFileCopy();
+        PsiJavaFile fileCopy = context.getFileCopy();
         PsiOtherMethodStripper stripper = new PsiOtherMethodStripper(toInspectCopies);
         fileCopy.accept(stripper);
-        info.addStrippedClassNames(stripper.getStrippedClassesNames());
+        context.addStrippedClassNames(stripper.getStrippedClassesNames());
     }
 
     /**
@@ -102,6 +108,8 @@ public class PreparerForSoot {
      */
     public void stripJava5Code(@NonNull PsiElement el) {
         el.accept(new Java5CodeStripVisitor());
+        el.accept(new Java5CodeStripVisitorSecondPass());
+        System.out.println("test");
 //        Pair<?,?> result = DegeneratorUtil.degenerate(el);
 //        System.out.println("result");
     }
@@ -113,10 +121,10 @@ public class PreparerForSoot {
      * @param el the element whose tree will be stripped of all copies
      */
     public void removeCopy(@NonNull PsiElement el) {
-        PsiElement copy = NullyTools.getCopiedElement(el);
+        PsiElement copy = context.getCopiedElement(el);
 
         if (copy != null) {
-            el.putUserData(NullyTools.KEY_COPY, null);
+            this.context.clearCopiedElementData(el);
 
 //            try {
 //                if (copy.isValid()) copy.delete();

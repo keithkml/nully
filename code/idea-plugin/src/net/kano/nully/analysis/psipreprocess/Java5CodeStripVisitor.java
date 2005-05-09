@@ -31,36 +31,45 @@
  *
  */
 
-package net.kano.nully.analysis.psipreprocess;
+package net.kano.nully.analysis.nulls.psipreprocess;
 
+import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.psi.JavaTokenType;
 import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.PsiArrayType;
 import com.intellij.psi.PsiBlockStatement;
+import com.intellij.psi.PsiCallExpression;
 import com.intellij.psi.PsiCodeBlock;
+import com.intellij.psi.PsiDeclarationStatement;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiElementFactory;
 import com.intellij.psi.PsiEllipsisType;
 import com.intellij.psi.PsiExpression;
 import com.intellij.psi.PsiExpressionList;
+import com.intellij.psi.PsiForStatement;
 import com.intellij.psi.PsiForeachStatement;
+import com.intellij.psi.PsiJavaToken;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiMethodCallExpression;
 import com.intellij.psi.PsiModifierList;
+import com.intellij.psi.PsiNewExpression;
 import com.intellij.psi.PsiParameter;
 import com.intellij.psi.PsiRecursiveElementVisitor;
-import com.intellij.psi.PsiStatement;
 import com.intellij.psi.PsiType;
+import com.intellij.psi.PsiVariable;
+import com.intellij.psi.PsiTypeCastExpression;
+import com.intellij.psi.PsiParenthesizedExpression;
 import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.util.IncorrectOperationException;
-import com.intellij.openapi.diagnostic.Logger;
 import com.siyeh.ig.psiutils.ClassUtils;
 import com.siyeh.ig.psiutils.ExpectedTypeUtils;
-import com.siyeh.ig.psiutils.TypeUtils;
-import net.kano.nully.NullyTools;
 import net.kano.nully.NonNull;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -73,13 +82,12 @@ class Java5CodeStripVisitor extends PsiRecursiveElementVisitor {
     private static final Logger LOGGER
             = Logger.getInstance(Java5CodeStripVisitor.class.getName());
 
-    //TODO: generics
-    //TODO: methods in enums or children of enums
-    //TODO: keep original copy markings user data for transformed elements
+    //TODO: strip generics
+    //TODO: convert enums to classes
 
-    private static final Map<String,String> s_boxingClasses = new HashMap<String, String>(8);
-    private static final Map<String,String> s_unboxingMethods = new HashMap<String, String>(8);
-    private static final Set<String> s_numberTypes = new HashSet<String>(8);
+    private static final Map<String,String> s_boxingClasses = new HashMap<String, String>(10);
+    private static final Map<String,String> s_unboxingMethods = new HashMap<String, String>(10);
+    private static final Set<String> s_numberTypes = new HashSet<String>(10);
 
     static {
         s_boxingClasses.put("int", "Integer");
@@ -89,6 +97,7 @@ class Java5CodeStripVisitor extends PsiRecursiveElementVisitor {
         s_boxingClasses.put("float", "Float");
         s_boxingClasses.put("double", "Double");
         s_boxingClasses.put("long", "Long");
+        s_boxingClasses.put("char", "Character");
 
         s_unboxingMethods.put("int", "intValue");
         s_unboxingMethods.put("short", "shortValue");
@@ -97,6 +106,9 @@ class Java5CodeStripVisitor extends PsiRecursiveElementVisitor {
         s_unboxingMethods.put("float", "floatValue");
         s_unboxingMethods.put("long", "longValue");
         s_unboxingMethods.put("double", "doubleValue");
+        // char maps to intValue because int can be cast down to char and
+        // there's no charValue method
+        s_unboxingMethods.put("char", "intValue");
 
         s_numberTypes.add("java.lang.Integer");
         s_numberTypes.add("java.lang.Short");
@@ -122,7 +134,11 @@ class Java5CodeStripVisitor extends PsiRecursiveElementVisitor {
     public void visitForeachStatement(PsiForeachStatement statement) {
         super.visitForeachStatement(statement);
 
-        transformForeachStatement(statement);
+        try {
+            transformForeachStatement(statement);
+        } catch (IncorrectOperationException e) {
+            LOGGER.error(e);
+        }
     }
 
     public void visitMethodCallExpression(PsiMethodCallExpression expression) {
@@ -151,70 +167,101 @@ class Java5CodeStripVisitor extends PsiRecursiveElementVisitor {
     /**
      * Converts a Java 5.0 "foreach" statement to an equivalent for loop.
      *
-     * @param statement a foreach statement
+     * @param foreachStmt a foreach statement
      */
-    private static void transformForeachStatement(@NonNull PsiForeachStatement statement) {
-        final StringBuffer newStatement = new StringBuffer();
-        final CodeStyleManager codeStyleManager =
-                CodeStyleManager.getInstance(statement.getManager());
-        final PsiExpression iteratedValue = statement.getIteratedValue();
-        if(iteratedValue.getType() instanceof PsiArrayType){
-            final String index = codeStyleManager.suggestUniqueVariableName("i",
-                    statement, true);
-            newStatement.append("for(int " + index + " = 0;" + index + '<');
-            newStatement.append(iteratedValue.getText());
-            newStatement.append(".length;" + index + "++)");
-            newStatement.append("{ ");
-            newStatement.append(statement.getIterationParameter().getType()
-                    .getPresentableText());
-            newStatement.append(' ');
-            newStatement.append(statement.getIterationParameter()
-                    .getName());
-            newStatement.append(" = ");
-            newStatement.append(iteratedValue.getText());
-            newStatement.append('[' + index + "];");
-            final PsiStatement body = statement.getBody();
-            appendBody(body, newStatement);
-            newStatement.append('}');
-        } else{
+    private static void transformForeachStatement(@NonNull PsiForeachStatement foreachStmt)
+            throws IncorrectOperationException {
+        CodeStyleManager codeStyleManager =
+                CodeStyleManager.getInstance(foreachStmt.getManager());
+        PsiExpression iteratedValue = foreachStmt.getIteratedValue();
+        PsiElement parent = foreachStmt.getParent();
+        PsiElementFactory factory = foreachStmt.getManager().getElementFactory();
+        PsiParameter iterationParam = foreachStmt.getIterationParameter();
+        PsiForStatement forStmt;
+        PsiCodeBlock forBody;
+        String indexVarName = codeStyleManager.suggestUniqueVariableName("i",
+                foreachStmt, true);
+        String forStatementText;
+        String initializerStr;
+        PsiType iteratedValueType = iteratedValue.getType();
+        String holderName = codeStyleManager.suggestUniqueVariableName("h",
+                foreachStmt, true);
+        if (iteratedValueType instanceof PsiArrayType) {
+            forStatementText = "for(int " + indexVarName + " = 0;"
+                    + indexVarName + '<' + holderName + ".length;"
+                    + indexVarName + "++) { }";
+            initializerStr = iteratedValue.getText() + "[" + indexVarName + "]";
 
-            final String iterator =  codeStyleManager
-                    .suggestUniqueVariableName("it", statement, true);
-            final String typeText = statement.getIterationParameter()
-                    .getType().getPresentableText();
-            newStatement.append("for(java.util.Iterator");
-            newStatement.append(" " + iterator + " = ");
-            newStatement.append(iteratedValue.getText());
-            newStatement.append(".iterator();" + iterator + ".hasNext();)");
-            newStatement.append('{');
-            newStatement.append(typeText);
-            newStatement.append(' ');
-            newStatement.append(statement.getIterationParameter()
-                    .getName());
-            newStatement.append(" = (" + typeText + ") ");
-            newStatement.append(iterator + ".next();");
-
-            final PsiStatement body = statement.getBody();
-            appendBody(body, newStatement);
-            newStatement.append('}');
+        } else {
+            forStatementText = "for(java.util.Iterator " + indexVarName
+                    + " = " + holderName + ".iterator();"
+                    + indexVarName + ".hasNext();) { }";
+            initializerStr = "(" + iterationParam
+                    .getType().getPresentableText() + ") " + indexVarName + ".next()";
         }
-        NullyTools.replaceStatement(statement, newStatement.toString());
+        forStmt = (PsiForStatement) factory.createStatementFromText(forStatementText.toString(),
+                parent);
+        PsiExpression initializer = factory.createExpressionFromText(initializerStr,
+                foreachStmt.getParent());
+        PsiDeclarationStatement varDecl = createVariableDeclaration(iterationParam,
+                initializer);
+        PsiBlockStatement forBodyBlock = (PsiBlockStatement) forStmt.getBody();
+        forBody = forBodyBlock.getCodeBlock();
+        forBody.addAfter(varDecl, forBody.getLBrace());
+        forBody.addBefore(foreachStmt.getBody(), forBody.getRBrace());
+        PsiExpression nullStmt = factory.createExpressionFromText("null",
+                foreachStmt);
+        PsiDeclarationStatement iteratedHolder
+                = factory.createVariableDeclarationStatement(holderName,
+                iteratedValueType, nullStmt);
+        PsiVariable holderVar = (PsiVariable) iteratedHolder.getDeclaredElements()[0];
+        holderVar.getInitializer().replace(iteratedValue.copy());
+        foreachStmt.getParent().addBefore(iteratedHolder, foreachStmt);
+        foreachStmt.replace(forStmt);
     }
 
-    private static void appendBody(final PsiStatement body,
-            final StringBuffer newStatement) {
-        if(body instanceof PsiBlockStatement){
-            final PsiCodeBlock block =
-                    ((PsiBlockStatement) body).getCodeBlock();
-            final PsiElement[] children =
-                    block.getChildren();
-            for(int i = 1; i < children.length - 1; i++){
-                //skip the braces
-                newStatement.append(children[i].getText());
-            }
-        } else{
-            newStatement.append(body.getText());
+    private static PsiDeclarationStatement createVariableDeclaration(
+            @NonNull PsiParameter iterationParam, @NonNull PsiElement initializer)
+            throws IncorrectOperationException {
+        PsiElementFactory factory = iterationParam.getManager().getElementFactory();
+        PsiDeclarationStatement varDecl
+                = factory.createVariableDeclarationStatement("x",
+                PsiType.BOOLEAN, null);
+        PsiVariable var = (PsiVariable) varDecl.getDeclaredElements()[0];
+        PsiElement equalsSign = getEqualsSign(var);
+        deleteUpTo(var, equalsSign);
+        for (PsiElement child : iterationParam.getChildren()) {
+            var.addBefore(child.copy(), equalsSign);
         }
+        var.getInitializer().replace(initializer);
+        return varDecl;
+    }
+
+    private static void deleteUpTo(PsiVariable parent, PsiElement upto)
+            throws IncorrectOperationException {
+        for (PsiElement element : parent.getChildren()) {
+            if (element == upto) {
+                break;
+            } else {
+                element.delete();
+            }
+        }
+    }
+
+    private static PsiElement getEqualsSign(@NonNull PsiVariable var) {
+        PsiElement el = var.getInitializer();
+        while (el != null && !isEqualsSign(el)) el = el.getPrevSibling();
+        return el;
+    }
+
+    private static boolean isEqualsSign(@NonNull PsiElement el) {
+        if (el instanceof PsiJavaToken) {
+            PsiJavaToken tok = (PsiJavaToken) el;
+            if (tok.getTokenType() == JavaTokenType.EQ) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -224,38 +271,49 @@ class Java5CodeStripVisitor extends PsiRecursiveElementVisitor {
      * @param expression an expression
      */
     private static void transformBoxing(@NonNull PsiExpression expression) {
-        PsiType expType = expression.getType();
-        final PsiType expressionType = expType;
-        if(expressionType == null){
+        PsiType expressionType = expression.getType();
+        if (expressionType == null) {
             return;
         }
-        if(!ClassUtils.isPrimitive(expressionType)){
+        if (!ClassUtils.isPrimitive(expressionType)) {
             return;
         }
-        final PsiType expectedType =
+        PsiType expectedType =
                 ExpectedTypeUtils.findExpectedType(expression);
-        if(expectedType == null){
+        if (expectedType == null) {
             return;
         }
 
-        if(ClassUtils.isPrimitive(expectedType)){
+        if (ClassUtils.isPrimitive(expectedType)) {
             return;
         }
-        final String newExpression;
-        String expText = expression.getText();
         String expectedText = expectedType.getPresentableText();
-        if (expectedType.equals(PsiType.BOOLEAN)) {
-            newExpression = "Boolean.valueOf(" + expText + ')';
-        } else if (s_boxingClasses.containsValue(expectedText)) {
-            final String classToConstruct = expectedText;
-            newExpression = "new " + classToConstruct + '(' + expText + ')';
-        } else {
-            final String classToConstruct = s_boxingClasses.get(expType.getPresentableText());
-            newExpression = "new " + classToConstruct + '(' + expText + ')';
-        }
-        NullyTools.replaceExpression(expression, newExpression);
+        PsiElementFactory factory = expression.getManager().getElementFactory();
+        try {
+            PsiCallExpression call;
+            if (expectedType.equals(PsiType.BOOLEAN)) {
+                call = (PsiCallExpression) factory.createExpressionFromText(
+                    "Boolean.valueOf(" + null + ')', expression);
+            } else {
+                String classToConstruct;
+                if (s_boxingClasses.containsValue(expectedText)) {
+                    classToConstruct = expectedText;
+                } else {
+                    classToConstruct = s_boxingClasses.get(expressionType.getPresentableText());
+                }
+                call = (PsiCallExpression) factory.createExpressionFromText(
+                    "new " + classToConstruct + '(' + "null" + ')', expression);
+            }
+            PsiExpressionList args = call.getArgumentList();
+            LOGGER.assertTrue(args != null);
+            args.getExpressions()[0].replace(expression.copy());
+            expression.replace(call);
 
+        } catch (IncorrectOperationException e) {
+            e.printStackTrace();
+        }
     }
+
 
     /**
      * Transforms {@code expression}, if an autounboxed expression, to an
@@ -264,15 +322,14 @@ class Java5CodeStripVisitor extends PsiRecursiveElementVisitor {
      * @param expression an expression
      */
     private static void transformUnboxing(@NonNull PsiExpression expression) {
-        final PsiType expressionType = expression.getType();
+        PsiType expressionType = expression.getType();
         if(expressionType == null){
             return;
         }
         if(ClassUtils.isPrimitive(expressionType)){
             return;
         }
-        final PsiType expectedType =
-                ExpectedTypeUtils.findExpectedType(expression);
+        PsiType expectedType = ExpectedTypeUtils.findExpectedType(expression);
 
         if(expectedType == null){
             return;
@@ -287,19 +344,23 @@ class Java5CodeStripVisitor extends PsiRecursiveElementVisitor {
             return;
         }
 
-        final String expectedTypeText = expectedType.getCanonicalText();
-        final String typeText = expressionType.getCanonicalText();
-        final String expressionText = expression.getText();
-        final String boxClassName = s_unboxingMethods.get(expectedTypeText);
-        if(TypeUtils.typeEquals("java.lang.Boolean", expressionType)){
-            NullyTools.replaceExpression(expression,
-                    expressionText + '.' + boxClassName + "()");
-        } else if(s_numberTypes.contains(typeText)){
-            NullyTools.replaceExpression(expression,
-                    expressionText + '.' + boxClassName + "()");
-        } else{
-            NullyTools.replaceExpression(expression,
-                    "((Number)" + expressionText + ")." + boxClassName + "()");
+        String expectedTypeText = expectedType.getPresentableText();
+        PsiElementFactory factory = expression.getManager().getElementFactory();
+//        PsiClassType characterType = factory.createTypeByFQClassName("java.lang.Character",
+//                expression.getResolveScope());
+        String unboxMethod = s_unboxingMethods.get(expectedTypeText);
+        try {
+            PsiTypeCastExpression cast
+                    = (PsiTypeCastExpression) factory.createExpressionFromText(
+                    "(" + expectedTypeText + ") (null)." + unboxMethod + "()", expression);
+            PsiMethodCallExpression call = (PsiMethodCallExpression) cast.getOperand();
+            PsiParenthesizedExpression parenth
+                    = (PsiParenthesizedExpression) call.getMethodExpression()
+                    .getQualifierExpression();
+            parenth.getExpression().replace(expression.copy());
+            expression.replace(cast);
+        } catch (IncorrectOperationException e) {
+            LOGGER.error(e);
         }
     }
 
@@ -314,6 +375,7 @@ class Java5CodeStripVisitor extends PsiRecursiveElementVisitor {
         if (called == null || !called.isVarArgs()) return;
 
         PsiExpressionList args = expression.getArgumentList();
+        if (args == null) return;
         PsiExpression[] exps = args.getExpressions();
         PsiParameter[] params = called.getParameterList().getParameters();
         int expsLen = exps.length;
@@ -331,23 +393,38 @@ class Java5CodeStripVisitor extends PsiRecursiveElementVisitor {
             }
         }
 
+        // create array instantiation code
         StringBuilder expsBuf = new StringBuilder();
         boolean first = true;
-        for (int i = paramsLen - 1; i < exps.length - 1; i++) {
-            if (first) first = false;
-            else expsBuf.append(", ");
+        List<PsiExpression> good = new ArrayList<PsiExpression>();
+        for (int i = paramsLen - 1; i <= exps.length - 1; i++) {
+            if (first) {
+                first = false;
+            } else {
+                expsBuf.append(",");
+            }
 
-            PsiExpression exp = exps[i];
-            expsBuf.append(exp.getText());
+            expsBuf.append("null");
+            good.add((PsiExpression) exps[i].copy());
         }
         String expsStr = expsBuf.toString();
 
         try {
             args.deleteChildRange(exps[paramsLen-1], exps[expsLen-1]);
-            String arrayTypeStr = arrayType.getCanonicalText();
+            String arrayTypeStr = arrayType.getPresentableText();
             PsiElementFactory factory = args.getManager().getElementFactory();
-            args.add(factory.createExpressionFromText("new "
-                    + arrayTypeStr + " { " + expsStr + " }", args));
+            PsiNewExpression newArrayExpr
+                    = (PsiNewExpression) factory.createExpressionFromText("new "
+                    + arrayTypeStr + " { " + expsStr + " }", args);
+            PsiExpression[] initializers = newArrayExpr.getArrayInitializer()
+                    .getInitializers();
+            LOGGER.assertTrue(good.size() == initializers.length);
+            Iterator<PsiExpression> goodIt = good.iterator();
+            for (PsiExpression initializer : initializers) {
+                PsiExpression next = goodIt.next();
+                initializer.replace(next);
+            }
+            args.add(newArrayExpr);
         } catch (IncorrectOperationException e) {
             LOGGER.error("Tried inserting " + expsStr, e);
         }
