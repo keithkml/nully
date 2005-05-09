@@ -33,22 +33,20 @@
 
 package net.kano.nully.analysis;
 
-import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiMethod;
 
-public class PsiNullProblem {
-    private NullProblemType type;
-    private PsiElement element;
+import java.util.Collection;
 
-    public PsiNullProblem(NullProblemType type, PsiElement element) {
-        this.type = type;
-        this.element = element;
+public class IllegalReturnOverrideProblem extends IllegalOverrideProblem {
+    private Collection<PsiMethod> badSupers;
+
+    public IllegalReturnOverrideProblem(PsiMethod method, Collection<PsiMethod> badSupers) {
+        super(method);
+
+        this.badSupers = badSupers;
     }
 
-    public NullProblemType getType() {
-        return type;
-    }
-
-    public PsiElement getElement() {
-        return element;
+    public Collection<PsiMethod> getBadSupers() {
+        return badSupers;
     }
 }

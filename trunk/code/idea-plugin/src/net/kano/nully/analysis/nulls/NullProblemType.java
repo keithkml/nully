@@ -31,35 +31,10 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.analysis.nulls;
 
-import com.intellij.codeInspection.InspectionToolProvider;
-import com.intellij.openapi.components.ApplicationComponent;
-import net.kano.nully.inspection.IllegalOverrideInspector;
-import net.kano.nully.inspection.IllegalNonnullInspector;
-import net.kano.nully.inspection.NullProblemInspector;
-
-public class NullyApplicationComponent implements ApplicationComponent, InspectionToolProvider {
-    //TOLATER: detect when null check is needed for non-@NonNull parameter
-    //TOLATER: detect when method only returns non-null
-    //TOLATER: detect possibly null @nullable 
-
-    public String getComponentName() {
-        return "Nully";
-    }
-
-    public void initComponent() {
-//        G.v().out = new PrintStream(new OutputStream() {
-//            public void write(int i) throws IOException {
-//            }
-//        });
-    }
-
-    public void disposeComponent() {
-    }
-
-    public Class[] getInspectionClasses() {
-        return new Class[] { NullProblemInspector.class,
-            IllegalOverrideInspector.class, IllegalNonnullInspector.class };
-    }
+public enum NullProblemType {
+    NULL_ASSIGNMENT_TO_NONNULL_VARIABLE,
+    NULL_RETURN_IN_NONNULL_METHOD,
+    NULL_ARGUMENT_FOR_NONNULL_PARAMETER
 }

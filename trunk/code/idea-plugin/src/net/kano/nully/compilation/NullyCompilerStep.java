@@ -61,26 +61,21 @@ import com.intellij.psi.PsiMethodCallExpression;
 import com.intellij.psi.PsiVariable;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
-import net.kano.nully.ImportantSuperMethodInfo;
 import net.kano.nully.NonNull;
 import net.kano.nully.NonNullTools;
 import net.kano.nully.NullyTools;
 import static net.kano.nully.NullyTools.METHOD_CHECKNONNULLRETURN;
-import net.kano.nully.OverrideType;
-import static net.kano.nully.OverrideType.IMPLEMENTS;
-import static net.kano.nully.OverrideType.OVERRIDES;
-import net.kano.nully.analysis.AnalysisInfo;
-import net.kano.nully.analysis.CodeAnalyzer;
-import net.kano.nully.analysis.NullProblemType;
-import static net.kano.nully.analysis.NullProblemType.INVALID_NONNULL_OVERRIDE;
-import static net.kano.nully.analysis.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
-import static net.kano.nully.analysis.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
-import static net.kano.nully.analysis.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
-import net.kano.nully.analysis.NullProblemFinder;
-import net.kano.nully.analysis.OtherProblemFinder;
+import net.kano.nully.analysis.AnalysisContext;
+import net.kano.nully.analysis.IllegalNonnullFinder;
 import net.kano.nully.analysis.ProblemFinder;
-import net.kano.nully.analysis.PsiNullProblem;
-import net.kano.nully.analysis.psipreprocess.PreparerForSoot;
+import net.kano.nully.analysis.nulls.CodeAnalyzer;
+import net.kano.nully.analysis.nulls.NullValueProblemFinder;
+import net.kano.nully.analysis.nulls.NullProblemType;
+import static net.kano.nully.analysis.nulls.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
+import static net.kano.nully.analysis.nulls.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
+import static net.kano.nully.analysis.nulls.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
+import net.kano.nully.analysis.nulls.NullValueProblem;
+import net.kano.nully.analysis.nulls.psipreprocess.PreparerForSoot;
 
 import javax.swing.SwingUtilities;
 import java.io.IOException;
@@ -90,6 +85,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class NullyCompilerStep implements JavaSourceTransformingCompiler {
+    //TODO: fix compiler - implement new inspections
     //TODO: insert @NullyInstrumented annotation
     private static final Logger LOGGER
             = Logger.getInstance(NullyCompilerStep.class.getName());
@@ -162,22 +158,23 @@ public class NullyCompilerStep implements JavaSourceTransformingCompiler {
 //
 //        if (!checker.shouldProcess()) return false;
 
-        PsiJavaFile copy = NullyTools.getMarkedCopy(jfile);
+        AnalysisContext ctx = new AnalysisContext();
 
-        AnalysisInfo info = new AnalysisInfo();
+        PsiJavaFile copy = NullyTools.getMarkedCopy(jfile,
+                ctx.getOriginalKey(), ctx.getCopyKey());
 
-        PreparerForSoot preparer = new PreparerForSoot(info);
+        PreparerForSoot preparer = new PreparerForSoot(ctx);
         preparer.makeMarkedCopy(copy);
-        preparer.stripJava5Code(info.getFileCopy());
+        preparer.stripJava5Code(ctx.getFileCopy());
 
         CodeAnalyzer analyzer = new CodeAnalyzer();
-        analyzer.analyze(info);
+        analyzer.analyze(ctx);
 
-        ProblemFinder finder = new NullProblemFinder();
-        List<PsiNullProblem> problems = new ArrayList<PsiNullProblem>();
-        problems.addAll(finder.findProblems(info));
-        ProblemFinder otherFinder = new OtherProblemFinder();
-        problems.addAll(otherFinder.findProblems(info));
+        ProblemFinder finder = new NullValueProblemFinder();
+        List<NullValueProblem> problems = new ArrayList<NullValueProblem>();
+        problems.addAll(finder.findProblems(ctx));
+        ProblemFinder otherFinder = new IllegalNonnullFinder();
+        problems.addAll(otherFinder.findProblems(ctx));
 
         // this must be done before transforming the code, before the PsiElements mean nothing!
         addCompilerWarnings(context, jfile, problems);
@@ -204,10 +201,10 @@ public class NullyCompilerStep implements JavaSourceTransformingCompiler {
         }
     }
 
-    private boolean insertDetectedPossibleNullChecks(List<PsiNullProblem> problems)
+    private boolean insertDetectedPossibleNullChecks(List<NullValueProblem> problems)
             throws IncorrectOperationException {
         boolean changed = false;
-        for (PsiNullProblem problem : problems) {
+        for (NullValueProblem problem : problems) {
             PsiElement el = problem.getElement();
             String oldText = el.getText();
             PsiElementFactory factory = el.getManager().getElementFactory();
@@ -234,14 +231,14 @@ public class NullyCompilerStep implements JavaSourceTransformingCompiler {
     }
 
     private void addCompilerWarnings(@NonNull CompileContext context,
-            @NonNull PsiJavaFile jfile, @NonNull List<PsiNullProblem> problems) {
-        for (PsiNullProblem problem : problems) {
+            @NonNull PsiJavaFile jfile, @NonNull List<NullValueProblem> problems) {
+        for (NullValueProblem problem : problems) {
             addCompilerWarning(context, jfile, problem);
         }
     }
 
     private void addCompilerWarning(@NonNull CompileContext context,
-            @NonNull PsiJavaFile orig, @NonNull PsiNullProblem problem) {
+            @NonNull PsiJavaFile orig, @NonNull NullValueProblem problem) {
         PsiElement element = problem.getElement();
         NullProblemType type = problem.getType();
         String desc;
@@ -265,7 +262,7 @@ public class NullyCompilerStep implements JavaSourceTransformingCompiler {
 
         } else if (type == NULL_RETURN_IN_NONNULL_METHOD) {
             desc = "Returned value may be ilegally null";
-
+/*
         } else if (type == INVALID_NONNULL_OVERRIDE) {
             ImportantSuperMethodInfo importantSuperMethodInfo = NullyTools.getBadOverrideInfo(problem);
             OverrideType overType = importantSuperMethodInfo.getType();
@@ -282,6 +279,7 @@ public class NullyCompilerStep implements JavaSourceTransformingCompiler {
                     + word + " " + NullyTools.getQualifiedMemberName(overridden)
                     + " without matching @" + NonNull.class.getSimpleName()
                     + " declaration";
+            */
         } else {
             return;
         }

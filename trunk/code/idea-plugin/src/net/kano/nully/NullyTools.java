@@ -2,7 +2,6 @@ package net.kano.nully;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.Key;
-import com.intellij.openapi.util.UserDataHolder;
 import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.PsiAssignmentExpression;
 import com.intellij.psi.PsiClass;
@@ -25,10 +24,9 @@ import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.psi.util.PsiSuperMethodUtil;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
-import net.kano.nully.analysis.AnalysisInfo;
-import net.kano.nully.analysis.NullProblemType;
-import net.kano.nully.analysis.PsiNullProblem;
-import net.kano.nully.analysis.soot.MayBeNullTag;
+import net.kano.nully.analysis.AnalysisContext;
+import net.kano.nully.analysis.nulls.soot.MayBeNullTag;
+import soot.Local;
 import soot.SootMethod;
 import soot.ValueBox;
 import soot.jimple.JimpleBody;
@@ -46,9 +44,6 @@ import java.util.Set;
 import java.util.TreeSet;
 
 public final class NullyTools {
-    public static final Key<PsiElement> KEY_COPY = Key.create("NullyCopy");
-    public static final Key<PsiElement> KEY_ORIGINAL = Key.create("NullyOrig");
-
     public static final String METHOD_CHECKNONNULLRETURN = "checkNonNullReturn";
     public static final String METHOD_CHECKNONNULLVALUE = "checkNonNullValue";
     public static final String METHOD_CHECKNONNULLPARAM = "checkNonNullParameter";
@@ -57,14 +52,6 @@ public final class NullyTools {
     public static final String GROUP_NULL_VALUES = "Null values";
 
     private NullyTools() { }
-
-    public static <E extends UserDataHolder> E getOriginalElement(@NonNull E argel) {
-        return (E) argel.getUserData(KEY_ORIGINAL);
-    }
-
-    public static <E extends UserDataHolder> E getCopiedElement(@NonNull E el) {
-        return (E) el.getUserData(KEY_COPY);
-    }
 
     public static PsiVariable getReferencedVariable(PsiElement el) {
         PsiElement parent = el.getParent();
@@ -83,9 +70,10 @@ public final class NullyTools {
         return variable;
     }
 
-    public static void markCopiedElements(PsiElement orig, PsiElement copy) {
-        copy.putUserData(KEY_ORIGINAL, orig);
-        orig.putUserData(KEY_COPY, copy);
+    public static void markCopiedElements(PsiElement orig, PsiElement copy,
+            Key<PsiElement> originalKey, Key<PsiElement> copyKey) {
+        copy.putCopyableUserData(originalKey, orig);
+        orig.putCopyableUserData(copyKey, copy);
         PsiElement[] origchs = orig.getChildren();
         PsiElement[] copychs = copy.getChildren();
         for (int i = 0; i < copychs.length; i++) {
@@ -94,7 +82,7 @@ public final class NullyTools {
             if (!origch.getClass().equals(copych.getClass())) {
                 throw new IllegalArgumentException("not a copy");
             }
-            markCopiedElements(origch, copych);
+            markCopiedElements(origch, copych, originalKey, copyKey);
         }
     }
 
@@ -119,16 +107,16 @@ public final class NullyTools {
         }
     }
 
-    public static PsiJavaFile getMarkedCopy(PsiJavaFile jfile) {
+    public static PsiJavaFile getMarkedCopy(PsiJavaFile jfile,
+            Key<PsiElement> originalKey, Key<PsiElement> copyKey) {
         PsiJavaFile fileCopy = (PsiJavaFile) jfile.copy();
-
-        markCopiedElements(jfile, fileCopy);
+        markCopiedElements(jfile, fileCopy, originalKey, copyKey);
         return fileCopy;
     }
 
-    public static PsiMember getPsiMemberCopy(AnalysisInfo info, SootMethod method) {
-        OffsetsTracker tracker = info.getTracker();
-        PsiJavaFile fileCopy = info.getFileCopy();
+    public static PsiMember getPsiMemberCopy(AnalysisContext context, SootMethod method) {
+        OffsetsTracker tracker = context.getTracker();
+        PsiJavaFile fileCopy = context.getFileCopy();
         SourceLnPosTag srcTag = getSourceTag(method);
         if (srcTag == null) return null;
         PsiElement el = tracker.getElementAtPosition(fileCopy, srcTag);
@@ -243,30 +231,22 @@ public final class NullyTools {
                 || name.equals(METHOD_CHECKNONNULLPARAM));
     }
 
-    public static String getQualifiedMemberName(PsiMember method) {
+    public static @NonNull String getQualifiedMemberName(@NonNull PsiMember method) {
         return method.getContainingClass().getName() + "." + method.getName();
     }
 
-    public static ImportantSuperMethodInfo getBadOverrideInfo(PsiNullProblem psiProblem) {
-        LOGGER.assertTrue(psiProblem.getType() == NullProblemType.INVALID_NONNULL_OVERRIDE);
-
-        PsiMethod method = (PsiMethod) psiProblem.getElement();
-        return getBadOverrideInfo(method);
-
-    }
-
-    public static ImportantSuperMethodInfo getBadOverrideInfo(PsiMethod method) {
+    public static ImportantSuperMethodInfo getBadOverrideInfo(@NonNull PsiMethod method) {
         List<PsiMethod> bad = new ArrayList<PsiMethod>();
         for (PsiMethod superm : PsiSuperMethodUtil.findSuperMethods(method)) {
             if (hasNonNullAnnotation(superm)) bad.add(superm);
         }
 
         return getImportantSuperMethod(method, bad);
-
     }
 
-    public static ImportantSuperMethodInfo getImportantSuperMethod(PsiMethod method,
-            Collection<PsiMethod> supers) {
+    public static @NonNull ImportantSuperMethodInfo getImportantSuperMethod(@NonNull PsiMethod method,
+            @NonNull Collection<PsiMethod> supers) {
+        if (supers.isEmpty()) throw new IllegalArgumentException("supers is empty");
         PsiMethod importantSuper = null;
         OverrideType overrideType = null;
 
@@ -361,6 +341,28 @@ public final class NullyTools {
 
     public static PsiAnnotation getNonnullAnnotation(@NonNull PsiModifierListOwner owner) {
         return owner.getModifierList().findAnnotation(NonNull.class.getName());
+    }
+
+    /**
+     * Returns a name for a new local which does not conflict with any other
+     * local in {@code locals}.
+     *
+     * @param locals a list of locals
+     * @return a name for a new local whose name is unique to {@code locals}
+     */
+    public static @NonNull String getUnusedLocalName(@NonNull Collection<Local> locals) {
+        for (int r = 0; r < 1000000; r++) {
+            String tryName = "$r" + r;
+            boolean good = true;
+            for (Local local : locals) {
+                if (local.getName().equals(tryName)) {
+                    good = false;
+                    break;
+                }
+            }
+            if (good) return tryName;
+        }
+        throw new IllegalStateException("could not find name. locals: " + locals);
     }
 
 
