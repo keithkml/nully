@@ -31,34 +31,16 @@
  *
  */
 
-package net.kano.nully.inspection;
+package net.kano.nully.analysis;
 
-import com.intellij.codeInspection.LocalQuickFix;
-import com.intellij.codeInspection.ProblemDescriptor;
-import com.intellij.openapi.project.Project;
-import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.psi.PsiModifierListOwner;
-import com.intellij.psi.PsiElement;
-import com.intellij.psi.util.PsiTreeUtil;
-import com.intellij.util.IncorrectOperationException;
-import net.kano.nully.NullyTools;
+import com.intellij.psi.PsiMethod;
 
-class RemoveNonNullQuickFix implements LocalQuickFix {
-    private static final Logger LOGGER
-            = Logger.getInstance(RemoveNonNullQuickFix.class.getName());
-    
-    public String getName() {
-        return "Remove @NonNull";
+public abstract class IllegalOverrideProblem extends NullyPsiProblem {
+    protected IllegalOverrideProblem(PsiMethod element) {
+        super(element);
     }
 
-    public void applyFix(Project project, ProblemDescriptor descriptor) {
-        PsiElement el = descriptor.getPsiElement();
-        PsiModifierListOwner owner = PsiTreeUtil.getParentOfType(el,
-                PsiModifierListOwner.class, false);
-        try {
-            NullyTools.getNonnullAnnotation(owner).delete();
-        } catch (IncorrectOperationException e) {
-            LOGGER.error(e);
-        }
+    public PsiMethod getElement() {
+        return (PsiMethod) super.getElement();
     }
 }

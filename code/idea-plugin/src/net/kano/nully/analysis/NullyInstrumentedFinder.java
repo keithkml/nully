@@ -33,9 +33,46 @@
 
 package net.kano.nully.analysis;
 
-public enum NullProblemType {
-    NULL_ASSIGNMENT_TO_NONNULL_VARIABLE,
-    NULL_RETURN_IN_NONNULL_METHOD,
-    NULL_ARGUMENT_FOR_NONNULL_PARAMETER,
-    INVALID_NONNULL_OVERRIDE
+import com.intellij.psi.PsiAnnotation;
+import com.intellij.psi.PsiModifierList;
+import com.intellij.psi.PsiRecursiveElementVisitor;
+import com.intellij.psi.PsiJavaFile;
+import net.kano.nully.NonNull;
+import net.kano.nully.NullyInstrumented;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+
+public class NullyInstrumentedFinder implements ProblemFinder {
+    @NonNull public Collection findProblems(
+            @NonNull AnalysisContext context) {
+        PsiJavaFile orig = context.getFileOrig();
+        NullyInstrumentedVisitor visitor = new NullyInstrumentedVisitor();
+        orig.accept(visitor);
+
+        List<NullyPsiProblem> problems = new ArrayList<NullyPsiProblem>();
+        for (PsiAnnotation anno : visitor.getBadElements()) {
+            problems.add(new NullyInstrumentedProblem(anno));
+        }
+        return problems;
+    }
+
+    private class NullyInstrumentedVisitor extends PsiRecursiveElementVisitor {
+        private List<PsiAnnotation> badElements = new ArrayList<PsiAnnotation>();
+
+        public void visitModifierList(PsiModifierList list) {
+            super.visitModifierList(list);
+
+            PsiAnnotation anno = list.findAnnotation(NullyInstrumented.class.getName());
+            if (anno != null) {
+                badElements.add(anno);
+            }
+        }
+
+        public List<PsiAnnotation> getBadElements() {
+            return badElements;
+        }
+    }
+
 }

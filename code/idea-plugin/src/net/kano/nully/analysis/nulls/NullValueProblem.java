@@ -31,35 +31,20 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.analysis.nulls;
 
-import com.intellij.codeInspection.InspectionToolProvider;
-import com.intellij.openapi.components.ApplicationComponent;
-import net.kano.nully.inspection.IllegalOverrideInspector;
-import net.kano.nully.inspection.IllegalNonnullInspector;
-import net.kano.nully.inspection.NullProblemInspector;
+import com.intellij.psi.PsiElement;
+import net.kano.nully.analysis.NullyPsiProblem;
 
-public class NullyApplicationComponent implements ApplicationComponent, InspectionToolProvider {
-    //TOLATER: detect when null check is needed for non-@NonNull parameter
-    //TOLATER: detect when method only returns non-null
-    //TOLATER: detect possibly null @nullable 
+public class NullValueProblem extends NullyPsiProblem {
+    private final NullProblemType type;
 
-    public String getComponentName() {
-        return "Nully";
+    public NullValueProblem(NullProblemType type, PsiElement element) {
+        super(element);
+        this.type = type;
     }
 
-    public void initComponent() {
-//        G.v().out = new PrintStream(new OutputStream() {
-//            public void write(int i) throws IOException {
-//            }
-//        });
-    }
-
-    public void disposeComponent() {
-    }
-
-    public Class[] getInspectionClasses() {
-        return new Class[] { NullProblemInspector.class,
-            IllegalOverrideInspector.class, IllegalNonnullInspector.class };
+    public NullProblemType getType() {
+        return type;
     }
 }

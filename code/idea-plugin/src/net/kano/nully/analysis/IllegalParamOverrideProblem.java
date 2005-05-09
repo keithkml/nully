@@ -33,69 +33,21 @@
 
 package net.kano.nully.analysis;
 
-import com.intellij.psi.PsiJavaFile;
-import net.kano.nully.OffsetsTracker;
-import soot.SootClass;
-import soot.SootMethod;
+import com.intellij.psi.PsiMethod;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
+import java.util.Collections;
 
-public class AnalysisInfo {
-    private PsiJavaFile fileOrig;
-    private PsiJavaFile fileCopy;
-    private List<SootMethod> sootMethods = new ArrayList<SootMethod>();
-    private List<SootClass> sootClasses;
-    private OffsetsTracker tracker;
-    private List<String> strippedClassNames = new ArrayList<String>();
+public class IllegalParamOverrideProblem extends IllegalOverrideProblem {
+    private Collection<ViolatedParameter> violators;
 
-    public OffsetsTracker getTracker() {
-        return tracker;
+    public IllegalParamOverrideProblem(PsiMethod method,
+            Collection<ViolatedParameter> violators) {
+        super(method);
+        this.violators = violators;
     }
 
-    public void setTracker(OffsetsTracker tracker) {
-        this.tracker = tracker;
-    }
-
-    public PsiJavaFile getFileCopy() {
-        return fileCopy;
-    }
-
-    public void setFileCopy(PsiJavaFile fileCopy) {
-        this.fileCopy = fileCopy;
-    }
-
-    public List<SootMethod> getSootMethods() {
-        return sootMethods;
-    }
-
-    public List<SootClass> getSootClasses() {
-        return sootClasses;
-    }
-
-    public void setSootClasses(List<SootClass> sootClasses) {
-        this.sootClasses = sootClasses;
-        for (SootClass cls : sootClasses) {
-            for (SootMethod method : (List<SootMethod>) cls.getMethods()) {
-                if (method.isConcrete()) sootMethods.add(method);
-            }
-        }
-    }
-
-    public PsiJavaFile getFileOrig() {
-        return fileOrig;
-    }
-
-    public void setFileOrig(PsiJavaFile fileOrig) {
-        this.fileOrig = fileOrig;
-    }
-
-    public void addStrippedClassNames(Collection<String> names) {
-        strippedClassNames.addAll(names);
-    }
-
-    public List<String> getStrippedClassNames() {
-        return strippedClassNames;
+    public Collection<ViolatedParameter> getViolators() {
+        return Collections.unmodifiableCollection(violators);
     }
 }

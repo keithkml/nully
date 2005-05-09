@@ -31,30 +31,37 @@
  *
  */
 
-package net.kano.nully.analysis;
+package net.kano.nully.analysis.nulls;
 
 import com.intellij.psi.PsiArrayType;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiClassType;
+import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiType;
+import com.intellij.psi.PsiVariable;
 import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.util.IncorrectOperationException;
-import net.kano.nully.NullyTools;
-import net.kano.nully.OffsetsTracker;
+import net.kano.nully.NonNullTools;
 import net.kano.nully.NullParameterException;
 import net.kano.nully.NullReturnException;
-import net.kano.nully.NonNullTools;
+import net.kano.nully.NullyTools;
+import net.kano.nully.OffsetsTracker;
 import net.kano.nully.UnexpectedNullValueException;
-import net.kano.nully.analysis.soot.JimpleMethodPreprocessor;
-import net.kano.nully.analysis.soot.NullPointerTagger;
-import net.kano.nully.analysis.soot.PsiJavaFileClassProvider;
+import net.kano.nully.NonNull;
+import net.kano.nully.Nullable;
+import net.kano.nully.analysis.nulls.soot.JimpleMethodPreprocessor;
+import net.kano.nully.analysis.nulls.soot.NullPointerTagger;
+import net.kano.nully.analysis.nulls.soot.PsiJavaFileClassProvider;
+import net.kano.nully.analysis.AnalysisContext;
 import soot.ArrayType;
+import soot.Body;
 import soot.BooleanType;
 import soot.ByteType;
 import soot.DoubleType;
 import soot.FloatType;
 import soot.IntType;
+import soot.Local;
 import soot.LongType;
 import soot.RefType;
 import soot.Scene;
@@ -64,10 +71,19 @@ import soot.SootMethod;
 import soot.SootResolver;
 import soot.SourceLocator;
 import soot.Type;
+import soot.Unit;
 import soot.VoidType;
+import soot.ValueBox;
+import soot.util.Chain;
 import soot.javaToJimple.InitialResolver;
+import soot.jimple.internal.JAssignStmt;
+import soot.jimple.internal.JInvokeStmt;
+import soot.jimple.internal.JimpleLocal;
 import soot.jimple.toolkits.scalar.ConstantPropagatorAndFolder;
+import soot.jimple.InvokeExpr;
 import soot.options.Options;
+import soot.tagkit.SourceLnPosTag;
+import soot.tagkit.Tag;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -79,7 +95,7 @@ import java.util.List;
 import java.util.Map;
 
 public class CodeAnalyzer {
-    private AnalysisInfo info;
+    private AnalysisContext context;
 
     private Map<PsiType,Type> staticSootTypes = new HashMap<PsiType, Type>();
     {
@@ -94,15 +110,16 @@ public class CodeAnalyzer {
         staticSootTypes.put(PsiType.VOID, VoidType.v());
     }
 
-    public void analyze(AnalysisInfo info) {
-        this.info = info;
+    public void analyze(AnalysisContext context) {
+        this.context = context;
 
 //        NonnullChecker checker = new NonnullChecker(false);
 //        psiFile.accept(checker);
 //
 //        if (!checker.shouldProcess()) return false;
 
-        PsiJavaFile fileCopy = info.getFileCopy();
+        PsiJavaFile fileCopy = context.getFileCopy();
+        //TODO: optimize imports is necessary?
         try {
             // avoid unnecessarily referencing classes which can't be resolved
             CodeStyleManager.getInstance(fileCopy.getManager()).optimizeImports(fileCopy);
@@ -117,7 +134,7 @@ public class CodeAnalyzer {
         loadSootClasses();
 
         try {
-            info.setTracker(new OffsetsTracker(new StringReader(fileCopy.getText())));
+            context.setTracker(new OffsetsTracker(new StringReader(fileCopy.getText())));
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
@@ -126,7 +143,7 @@ public class CodeAnalyzer {
 
         prepareCodeForAnalysis();
 
-        JimpleMethodPreprocessor preprocessor = new JimpleMethodPreprocessor(info);
+        JimpleMethodPreprocessor preprocessor = new JimpleMethodPreprocessor(context);
         preprocessor.preprocessCode();
 
         tagNulls();
@@ -153,7 +170,7 @@ public class CodeAnalyzer {
         scene.getApplicationClasses().clear();
         SourceLocator.v().setClassProviders(Collections.EMPTY_LIST);
         SootResolver.v().clear();
-        info = null;
+        context = null;
 
         List<SootClass> scs = new ArrayList<SootClass>(scene.getClasses());
         for (SootClass sc : scs) scene.removeClass(sc);
@@ -162,8 +179,65 @@ public class CodeAnalyzer {
     private void prepareCodeForAnalysis() {
 //        LocalSplitter.v().transform(body);
 //        CopyPropagator.v().transform(body);
-        for (SootMethod method : info.getSootMethods()) {
-            ConstantPropagatorAndFolder.v().transform(method.retrieveActiveBody());
+        for (SootMethod method : context.getSootMethods()) {
+            Body body = method.retrieveActiveBody();
+            ConstantPropagatorAndFolder.v().transform(body);
+            List<Unit> units = new ArrayList<Unit>(body.getUnits());
+            for (Unit unit : units) {
+                if (!(unit instanceof JInvokeStmt)) continue;
+
+                boolean any = false;
+                int sline = 0;
+                int spos = 0;
+                int eline = 0;
+                int epos = 0;
+                for (Tag tag : (List<Tag>) unit.getTags()) {
+                    if (!(tag instanceof SourceLnPosTag)) continue;
+
+                    SourceLnPosTag posTag = (SourceLnPosTag) tag;
+                    if (!any) {
+                        sline = posTag.startLn();
+                        spos = posTag.startPos();
+                        eline = posTag.endLn();
+                        eline = posTag.endPos();
+                        any = true;
+                    } else {
+                        if (posTag.startLn() < sline) {
+                            sline = posTag.startLn();
+                            spos = posTag.startPos();
+                        } else if (posTag.startPos() < spos) {
+                            spos = posTag.startPos();
+                        }
+                        if (posTag.endLn() > eline) {
+                            eline = posTag.endLn();
+                            epos = posTag.endPos();
+                        } else if (posTag.endPos() > epos) {
+                            epos = posTag.endPos();
+                        }
+                    }
+                }
+                if (!any) continue;
+
+                OffsetsTracker tracker = context.getTracker();
+                PsiElement el = tracker.getElementAtPosition(context.getFileCopy(),
+                        new SourceLnPosTag(sline, eline, spos, epos));
+                if (el == null) continue;
+                PsiVariable var = NullyTools.getReferencedVariable(el);
+                if (var == null) continue;
+
+                JInvokeStmt invokeStmt = (JInvokeStmt) unit;
+                InvokeExpr invokeExpr = invokeStmt.getInvokeExpr();
+                Chain locals = body.getLocals();
+                String name = NullyTools.getUnusedLocalName(locals);
+                Local local = new JimpleLocal(name, invokeExpr.getType());
+                locals.add(local);
+                JAssignStmt stmt = new JAssignStmt(local, invokeExpr);
+                stmt.addAllTagsOf(unit);
+                ValueBox origBox = stmt.getInvokeExprBox();
+                origBox.addAllTagsOf(invokeStmt.getInvokeExprBox());
+                origBox.addAllTagsOf(invokeStmt);
+                body.getUnits().swapWith(unit, stmt);
+            }
         }
     }
 
@@ -173,11 +247,15 @@ public class CodeAnalyzer {
      */
     private void prepareSootClasses() {
         List<String> names = new ArrayList<String>();
-        PsiJavaFile fileCopy = info.getFileCopy();
+        PsiJavaFile fileCopy = context.getFileCopy();
+        PsiClass[] psiClasses = fileCopy.getClasses();
         List<PsiClass> classes = new ArrayList<PsiClass>(
-                Arrays.asList(fileCopy.getClasses()));
+                Arrays.asList(psiClasses));
+        for (PsiClass psiClass : psiClasses) {
+            Collections.addAll(classes, psiClass.getAllInnerClasses());
+        }
         for (PsiClass cls : classes) {
-            names.add(cls.getQualifiedName());
+            names.add(NullyTools.getJavaNameForClass(cls));
         }
 
         // tell Soot where to find the code
@@ -196,14 +274,17 @@ public class CodeAnalyzer {
         }
 
         // add the classes which were stripped out
-        for (String stripped : info.getStrippedClassNames()) {
+        for (String stripped : context.getStrippedClassNames()) {
             scene.addBasicClass(stripped);
         }
 
+        //TODO: add all resolvable classes
         // add any classes we might reference
         scene.addBasicClass(UnexpectedNullValueException.class.getName());
         scene.addBasicClass(NullParameterException.class.getName());
         scene.addBasicClass(NonNullTools.class.getName());
+        scene.addBasicClass(NonNull.class.getName());
+        scene.addBasicClass(Nullable.class.getName());
         scene.addBasicClass(NullReturnException.class.getName());
     }
 
@@ -216,10 +297,10 @@ public class CodeAnalyzer {
         scene.setPhantomRefs(true);
         scene.loadBasicClasses();
         List<SootClass> classes = new ArrayList<SootClass>();
-        for (PsiClass cls : info.getFileCopy().getClasses()) {
+        for (PsiClass cls : context.getFileCopy().getClasses()) {
             addClass(cls, classes);
         }
-        info.setSootClasses(classes);
+        context.setSootClasses(classes);
     }
 
     private void addClass(PsiClass cls, List<SootClass> classes) {
@@ -234,7 +315,7 @@ public class CodeAnalyzer {
     private void tagNulls() {
         NullPointerTagger checker = new NullPointerTagger();
         Scene.v().setPhantomRefs(true);
-        for (SootMethod method : info.getSootMethods()) {
+        for (SootMethod method : context.getSootMethods()) {
             checker.transform(method.retrieveActiveBody());
         }
     }

@@ -42,13 +42,13 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiVariable;
 import net.kano.nully.NullyTools;
-import net.kano.nully.analysis.AnalysisInfo;
-import net.kano.nully.analysis.NullProblemType;
-import static net.kano.nully.analysis.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
-import static net.kano.nully.analysis.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
-import static net.kano.nully.analysis.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
+import net.kano.nully.analysis.AnalysisContext;
+import net.kano.nully.analysis.nulls.NullProblemType;
+import static net.kano.nully.analysis.nulls.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
+import static net.kano.nully.analysis.nulls.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
+import static net.kano.nully.analysis.nulls.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
 import net.kano.nully.analysis.ProblemFinder;
-import net.kano.nully.analysis.PsiNullProblem;
+import net.kano.nully.analysis.nulls.NullValueProblem;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -56,17 +56,17 @@ import java.util.List;
 public class ProblemHighlighter {
     private static final Logger LOGGER = Logger.getInstance(ProblemHighlighter.class.getName());
 
-    public List<ProblemDescriptor> highlightProblems(AnalysisInfo info,
+    public List<ProblemDescriptor> highlightProblems(AnalysisContext context,
             InspectionManager mgr, List<ProblemFinder> finders) {
-        List<PsiNullProblem> psiProblems = new ArrayList<PsiNullProblem>();
+        List<NullValueProblem> psiProblems = new ArrayList<NullValueProblem>();
 
         for (ProblemFinder finder : finders) {
-            psiProblems.addAll(finder.findProblems(info));
+            psiProblems.addAll(finder.findProblems(context));
         }
 
         List<ProblemDescriptor> problems = new ArrayList<ProblemDescriptor>();
-        for (PsiNullProblem psiProblem : psiProblems) {
-            ProblemDescriptor prob = getProblem(mgr, psiProblem);
+        for (NullValueProblem nullProblem : psiProblems) {
+            ProblemDescriptor prob = getProblem(mgr, nullProblem);
 
             if (prob != null) problems.add(prob);
         }
@@ -75,9 +75,9 @@ public class ProblemHighlighter {
     }
 
     private ProblemDescriptor getProblem(InspectionManager mgr,
-            PsiNullProblem psiProblem) {
-        PsiElement element = psiProblem.getElement();
-        NullProblemType type = psiProblem.getType();
+            NullValueProblem nullProblem) {
+        PsiElement element = nullProblem.getElement();
+        NullProblemType type = nullProblem.getType();
         LocalQuickFix fix = null;
 
         String desc = null;

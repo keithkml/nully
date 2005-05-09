@@ -37,11 +37,11 @@ import com.intellij.codeInspection.InspectionManager;
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiMember;
-import net.kano.nully.analysis.AnalysisInfo;
-import net.kano.nully.analysis.CodeAnalyzer;
-import net.kano.nully.analysis.NullProblemFinder;
+import net.kano.nully.analysis.AnalysisContext;
+import net.kano.nully.analysis.nulls.CodeAnalyzer;
+import net.kano.nully.analysis.nulls.NullValueProblemFinder;
 import net.kano.nully.analysis.ProblemFinder;
-import net.kano.nully.analysis.psipreprocess.PreparerForSoot;
+import net.kano.nully.analysis.nulls.psipreprocess.PreparerForSoot;
 
 import java.util.Arrays;
 import java.util.List;
@@ -49,18 +49,23 @@ import java.util.List;
 public class ProblemFinderAndHighlighter {
     public static ProblemDescriptor[] findNullProblems(PsiJavaFile jfile,
             List<PsiMember> toInspect, InspectionManager manager) {
-        AnalysisInfo info = new AnalysisInfo();
-        PreparerForSoot preparer = new PreparerForSoot(info);
+        AnalysisContext context = new AnalysisContext();
+        PreparerForSoot preparer = new PreparerForSoot(context);
         preparer.prepareForElementsAnalysis(jfile, toInspect);
 
+        return findProblems(context, manager, preparer, jfile);
+    }
+
+    private static ProblemDescriptor[] findProblems(AnalysisContext context,
+            InspectionManager manager, PreparerForSoot preparer, PsiJavaFile jfile) {
         CodeAnalyzer analyzer = new CodeAnalyzer();
         List<ProblemDescriptor> problems;
         try {
-            analyzer.analyze(info);
+            analyzer.analyze(context);
 
             ProblemHighlighter highlighter = new ProblemHighlighter();
-            problems = highlighter.highlightProblems(info, manager,
-                    Arrays.<ProblemFinder>asList(new NullProblemFinder()));
+            problems = highlighter.highlightProblems(context, manager,
+                    Arrays.<ProblemFinder>asList(new NullValueProblemFinder()));
 
         } finally {
             analyzer.resetSoot();
@@ -69,5 +74,14 @@ public class ProblemFinderAndHighlighter {
 
         if (problems.isEmpty()) return null;
         else return problems.toArray(new ProblemDescriptor[0]);
+    }
+
+    public static ProblemDescriptor[] findNullProblems(PsiJavaFile file,
+            InspectionManager manager) {
+        AnalysisContext context = new AnalysisContext();
+        PreparerForSoot preparer = new PreparerForSoot(context);
+        preparer.prepareForFileAnalysis(file);
+
+        return findProblems(context, manager, preparer, file);
     }
 }

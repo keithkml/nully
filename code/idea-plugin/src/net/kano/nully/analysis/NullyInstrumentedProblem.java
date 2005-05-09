@@ -33,38 +33,10 @@
 
 package net.kano.nully.analysis;
 
-import com.intellij.psi.PsiMethod;
-import com.intellij.psi.PsiRecursiveElementVisitor;
-import com.intellij.psi.util.PsiSuperMethodUtil;
-import net.kano.nully.NullyTools;
+import com.intellij.psi.PsiAnnotation;
 
-import java.util.ArrayList;
-import java.util.List;
-
-public class IllegalNonnullOverrideVisitor extends PsiRecursiveElementVisitor {
-    public static boolean methodIllegallyOverrides(PsiMethod method) {
-        boolean bad = false;
-        if (NullyTools.hasNonNullAnnotation(method)) bad = false;
-        else if (method.isConstructor()) bad = false;
-        else for (PsiMethod superm : PsiSuperMethodUtil.findSuperMethods(method, true)) {
-            if (NullyTools.hasNonNullAnnotation(superm)) {
-                bad = true;
-                break;
-            }
-        }
-        return bad;
-    }
-
-    private final List<PsiMethod> badMethods = new ArrayList<PsiMethod>();
-
-    public void visitMethod(PsiMethod method) {
-        super.visitMethod(method);
-
-        boolean bad = methodIllegallyOverrides(method);
-        if (bad) badMethods.add(method);
-    }
-
-    public List<PsiMethod> getBadMethods() {
-        return badMethods;
+public class NullyInstrumentedProblem extends NullyPsiProblem {
+    public NullyInstrumentedProblem(PsiAnnotation anno) {
+        super(anno);
     }
 }

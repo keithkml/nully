@@ -34,32 +34,92 @@
 package net.kano.nully.inspection;
 
 import com.intellij.codeInspection.InspectionManager;
+import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
-import com.intellij.psi.PsiClass;
-import com.intellij.psi.PsiField;
-import com.intellij.psi.PsiFile;
-import com.intellij.psi.PsiJavaFile;
-import com.intellij.psi.PsiMember;
-import com.intellij.psi.PsiMethod;
+import static com.intellij.codeInspection.ProblemHighlightType.GENERIC_ERROR_OR_WARNING;
 import com.intellij.psi.PsiElement;
-import static net.kano.nully.inspection.ProblemFinderAndHighlighter.findNullProblems;
+import com.intellij.psi.PsiJavaFile;
+import com.intellij.psi.PsiMethod;
+import com.intellij.psi.PsiVariable;
+import net.kano.nully.NonNull;
+import net.kano.nully.NullyTools;
+import net.kano.nully.analysis.AnalysisContext;
+import net.kano.nully.analysis.nulls.CodeAnalyzer;
+import net.kano.nully.analysis.nulls.NullValueProblemFinder;
+import net.kano.nully.analysis.nulls.NullProblemType;
+import static net.kano.nully.analysis.nulls.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
+import static net.kano.nully.analysis.nulls.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
+import static net.kano.nully.analysis.nulls.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
+import net.kano.nully.analysis.nulls.NullValueProblem;
+import net.kano.nully.analysis.nulls.psipreprocess.PreparerForSoot;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 
-public class NullProblemInspector extends AbstractNullyInspection {
-    //TODO: whole-file checks?
-    
+public class NullProblemInspector
+        extends ProblemFinderBasedInspector<NullValueProblemFinder, NullValueProblem> {
     public String getDisplayName() {
-        return "Possibly null value in @NonNull context";
+        return "Possibly null value in @" + NonNull.class.getSimpleName() + " context";
     }
 
     public String getShortName() {
         return "NullyNullProblemCheck";
     }
 
+    protected NullValueProblemFinder getFinderInstance() {
+        return new NullValueProblemFinder();
+    }
+
+    protected EnumSet<InspectionType> getInspectionTypes() {
+        return EnumSet.of(InspectionType.FILE);
+    }
+
+    protected void prepareContextForFile(AnalysisContext context,
+            PsiJavaFile jfile) {
+        PreparerForSoot preparer = new PreparerForSoot(context);
+        context.setPreparer(preparer);
+        preparer.prepareForFileAnalysis(jfile);
+
+        CodeAnalyzer analyzer = new CodeAnalyzer();
+        context.setAnalyzer(analyzer);
+        analyzer.analyze(context);
+    }
+
+    protected void cleanUp(AnalysisContext context) {
+        CodeAnalyzer analyzer = context.getAnalyzer();
+        if (analyzer != null) analyzer.resetSoot();
+        PreparerForSoot preparer = context.getPreparer();
+        if (preparer != null) preparer.removeCopy(context.getFileOrig());
+    }
+
+    protected void addProblems(InspectionManager manager,
+            List<ProblemDescriptor> problems, NullValueProblem problem) {
+        PsiElement element = problem.getElement();
+        NullProblemType type = problem.getType();
+        LocalQuickFix fix = null;
+
+        String desc = null;
+        if (type == NULL_ARGUMENT_FOR_NONNULL_PARAMETER) {
+            PsiMethod method = NullyTools.getCalledMethod(element);
+            desc = "<HTML>Argument passed to <B>" + method.getName()
+                    + "()</B> may be illegally null";
+
+        } else if (type == NULL_ASSIGNMENT_TO_NONNULL_VARIABLE) {
+            PsiVariable var = NullyTools.getAssignedVariable(element);
+            desc = "<HTML>Value assigned to <B>" + var.getName()
+                                + "</B> may be illegally null";
+
+        } else if (type == NULL_RETURN_IN_NONNULL_METHOD) {
+            desc = "Returned value may be ilegally null";
+
+        }
+
+        if (desc != null) {
+            problems.add(manager.createProblemDescriptor(element, desc, fix,
+                    GENERIC_ERROR_OR_WARNING));
+        }
+    }
+/*
     public ProblemDescriptor[] checkClass(PsiClass aClass,
             InspectionManager manager, boolean isOnTheFly) {
         PsiJavaFile jfile = getParentJavaFile(aClass);
@@ -95,5 +155,5 @@ public class NullProblemInspector extends AbstractNullyInspection {
         if (!(container instanceof PsiJavaFile)) jfile = null;
         else jfile = (PsiJavaFile) container;
         return jfile;
-    }
+    }*/
 }
