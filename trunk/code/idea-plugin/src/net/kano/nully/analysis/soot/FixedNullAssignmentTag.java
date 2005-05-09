@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.analysis.soot;
+package net.kano.nully.analysis.nulls.soot;
 
 import soot.tagkit.Tag;
 import soot.tagkit.AttributeValueException;

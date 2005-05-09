@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.analysis.soot;
+package net.kano.nully.analysis.nulls.soot;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.psi.PsiElement;
@@ -49,7 +49,7 @@ import net.kano.nully.NullParameterException;
 import net.kano.nully.NullyTools;
 import net.kano.nully.OffsetsTracker;
 import net.kano.nully.UnexpectedNullValueException;
-import net.kano.nully.analysis.AnalysisInfo;
+import net.kano.nully.analysis.AnalysisContext;
 import soot.Body;
 import soot.IntType;
 import soot.Local;
@@ -95,10 +95,10 @@ public class JimpleMethodPreprocessor {
     private static final Logger LOGGER
             = Logger.getInstance(JimpleMethodPreprocessor.class.getName());
 
-    private final AnalysisInfo info;
+    private final AnalysisContext context;
 
-    public JimpleMethodPreprocessor(@NonNull AnalysisInfo info) {
-        this.info = info;
+    public JimpleMethodPreprocessor(@NonNull AnalysisContext context) {
+        this.context = context;
     }
 
     /**
@@ -106,8 +106,8 @@ public class JimpleMethodPreprocessor {
      * AnalysisInfo} and preprocesses each one.
      */
     public void preprocessCode() {
-        for (SootMethod method : info.getSootMethods()) {
-            PsiMember member = NullyTools.getPsiMemberCopy(info, method);
+        for (SootMethod method : context.getSootMethods()) {
+            PsiMember member = NullyTools.getPsiMemberCopy(context, method);
             if (member == null) continue;
             preprocessMethod(member, method.retrieveActiveBody());
         }
@@ -193,7 +193,7 @@ public class JimpleMethodPreprocessor {
         PsiParameterList parameterList = method.getParameterList();
         PsiParameter[] params = parameterList.getParameters();
         PsiParameter paramCopy = params[paramIndex];
-        PsiParameter param = NullyTools.getOriginalElement(paramCopy);
+        PsiParameter param = context.getOriginalElement(paramCopy);
         if (!NullyTools.hasNonNullAnnotation(param)) return false;
 
         // create the exception constructor descriptor
@@ -227,7 +227,7 @@ public class JimpleMethodPreprocessor {
         // find the called method
         PsiMethod referencedMethod = call.resolveMethod();
         if (referencedMethod == null) return false;
-        PsiMethod referencedMethodOrig = NullyTools.getOriginalElement(referencedMethod);
+        PsiMethod referencedMethodOrig = context.getOriginalElement(referencedMethod);
         if (referencedMethodOrig != null) referencedMethod = referencedMethodOrig;
 
         // see if the called method is defined as non-null
@@ -315,7 +315,7 @@ public class JimpleMethodPreprocessor {
             // to create a temporary local which will hold the value while it's
             // being checked for nullness, so a null value is never present in
             // the actual variable being assigned.
-            Local newLocal = jimple.newLocal(getUnusedLocalName(locals),
+            Local newLocal = jimple.newLocal(NullyTools.getUnusedLocalName(locals),
                             checkedStmt.getLeftOp().getType());
             locals.add(newLocal);
 
@@ -324,7 +324,8 @@ public class JimpleMethodPreprocessor {
             // copy tags over
             copyStmt.getRightOpBox().addAllTagsOf(checkedStmt.getRightOpBox());
             copyStmt.addTag(new FixedNullAssignmentTag());
-            copyStmt.addAllTagsOf(checkedStmt);
+            // TODO: why did I add call to addAllTagsOf(checkedStmt)??
+//            copyStmt.addAllTagsOf(checkedStmt);
 
             // the value holder is now the new local
             holder = newLocal;
@@ -341,7 +342,7 @@ public class JimpleMethodPreprocessor {
                         checkedStmt);
 
         // create the local to hold the exception to be thrown
-        Local exceptionLocal = jimple.newLocal(getUnusedLocalName(locals),
+        Local exceptionLocal = jimple.newLocal(NullyTools.getUnusedLocalName(locals),
                         RefType.v(RuntimeException.class.getName()));
         locals.add(exceptionLocal);
 
@@ -434,22 +435,22 @@ public class JimpleMethodPreprocessor {
     }
 
     /**
-     * Returns the assigned variable in the {@link AnalysisInfo#getFileCopy()}
+     * Returns the assigned variable in the {@link AnalysisContext#getFileCopy()}
      * corresponding to the given {@code varSrcTag}.
      *
      * @param varSrcTag a source tag for an {@link AssignStmt}
      * @return the assigned variable, if any
      */
     private PsiVariable getAssignedVariable(@NonNull SourceLnPosTag varSrcTag) {
-        OffsetsTracker tracker = info.getTracker();
-        PsiJavaFile fileCopy = info.getFileCopy();
+        OffsetsTracker tracker = context.getTracker();
+        PsiJavaFile fileCopy = context.getFileCopy();
         PsiElement varEl = tracker.getElementAtPosition(fileCopy, varSrcTag);
         PsiVariable varCopy = NullyTools.getReferencedVariable(varEl);
-        return NullyTools.getOriginalElement(varCopy);
+        return context.getOriginalElement(varCopy);
     }
 
     /**
-     * Returns the method call expression in the {@link AnalysisInfo#getFileCopy()}
+     * Returns the method call expression in the {@link AnalysisContext#getFileCopy()}
      * corresponding to the given {@code assignStmt}.
      *
      * @param assignStmt an assignment statement
@@ -463,8 +464,8 @@ public class JimpleMethodPreprocessor {
         if (tag == null) return null;
 
         // find the method call
-        PsiJavaFile fileCopy = info.getFileCopy();
-        OffsetsTracker tracker = info.getTracker();
+        PsiJavaFile fileCopy = context.getFileCopy();
+        OffsetsTracker tracker = context.getTracker();
         PsiElement rightEl = tracker.getElementAtPosition(fileCopy, tag);
         PsiMethodCallExpression call = PsiTreeUtil.getParentOfType(rightEl,
                 PsiMethodCallExpression.class, false);
@@ -503,28 +504,6 @@ public class JimpleMethodPreprocessor {
             actualTag = stmtSrcTag;
         }
         return actualTag;
-    }
-
-    /**
-     * Returns a name for a new local which does not conflict with any other
-     * local in {@code locals}.
-     *
-     * @param locals a list of locals
-     * @return a name for a new local whose name is unique to {@code locals}
-     */
-    private static @NonNull String getUnusedLocalName(@NonNull Collection<Local> locals) {
-        for (int r = 0; r < 1000000; r++) {
-            String tryName = "$r" + r;
-            boolean good = true;
-            for (Local local : locals) {
-                if (local.getName().equals(tryName)) {
-                    good = false;
-                    break;
-                }
-            }
-            if (good) return tryName;
-        }
-        throw new IllegalStateException("could not find name. locals: " + locals);
     }
 
     /**

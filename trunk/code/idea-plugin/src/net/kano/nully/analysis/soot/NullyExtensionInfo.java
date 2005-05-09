@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.analysis.soot;
+package net.kano.nully.analysis.nulls.soot;
 
 import net.kano.nully.NonNull;
 import polyglot.frontend.FileSource;
@@ -43,13 +43,14 @@ import soot.javaToJimple.CastInsertionVisitor;
 import soot.javaToJimple.JavaToJimple;
 import soot.javaToJimple.SaveASTVisitor;
 import soot.javaToJimple.StrictFPPropagator;
+import soot.javaToJimple.jj.ExtensionInfo;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-public class NullyExtensionInfo extends soot.javaToJimple.jj.ExtensionInfo {
+public class NullyExtensionInfo extends ExtensionInfo {
     private final String fileName;
     private final ReaderProvider provider;
 

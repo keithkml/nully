@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.analysis.psipreprocess;
+package net.kano.nully.analysis.nulls.psipreprocess;
 
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiCodeBlock;
@@ -213,7 +213,7 @@ public class PsiOtherMethodStripper extends PsiRecursiveElementVisitor {
                         }
 
                         PsiType type = param.getType();
-                        arglist.append("(" + type.getCanonicalText() + ") null");
+                        arglist.append("(" + type.getPresentableText() + ") null");
                     }
                     try {
                         body.add(factory.createStatementFromText("super("
