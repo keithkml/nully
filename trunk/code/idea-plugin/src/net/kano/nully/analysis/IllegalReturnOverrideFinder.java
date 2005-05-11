@@ -62,7 +62,7 @@ public class IllegalReturnOverrideFinder implements ProblemFinder<IllegalReturnO
 
     private class IllegalOverrideVisitor extends PsiRecursiveElementVisitor {
         public Collection<PsiMethod> findIllegalOverrides(PsiMethod method) {
-            if (!NullyTools.hasNonNullAnnotation(method)) {
+            if (NullyTools.hasNonNullAnnotation(method)) {
                 return Collections.emptyList();
             }
 

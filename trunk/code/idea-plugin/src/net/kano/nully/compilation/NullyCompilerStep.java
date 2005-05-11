@@ -33,6 +33,8 @@
 
 package net.kano.nully.compilation;
 
+import static net.kano.nully.OverrideType.OVERRIDES;
+import static net.kano.nully.OverrideType.IMPLEMENTS;
 import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.compiler.CompileContext;
@@ -51,8 +53,6 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiElementFactory;
-import com.intellij.psi.PsiExpression;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiJavaToken;
@@ -62,12 +62,17 @@ import com.intellij.psi.PsiVariable;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
 import net.kano.nully.NonNull;
-import net.kano.nully.NonNullTools;
 import net.kano.nully.NullyTools;
-import static net.kano.nully.NullyTools.METHOD_CHECKNONNULLRETURN;
+import net.kano.nully.OverrideType;
+import net.kano.nully.ImportantSuperMethodInfo;
 import net.kano.nully.analysis.AnalysisContext;
 import net.kano.nully.analysis.IllegalNonnullFinder;
 import net.kano.nully.analysis.ProblemFinder;
+import net.kano.nully.analysis.IllegalParamOverrideFinder;
+import net.kano.nully.analysis.IllegalReturnOverrideFinder;
+import net.kano.nully.analysis.NullyProblem;
+import net.kano.nully.analysis.IllegalReturnOverrideProblem;
+import net.kano.nully.analysis.NullyInstrumentedFinder;
 import net.kano.nully.analysis.nulls.CodeAnalyzer;
 import net.kano.nully.analysis.nulls.NullValueProblemFinder;
 import net.kano.nully.analysis.nulls.NullProblemType;
@@ -82,6 +87,8 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class NullyCompilerStep implements JavaSourceTransformingCompiler {
@@ -95,6 +102,12 @@ public class NullyCompilerStep implements JavaSourceTransformingCompiler {
 
     private FileDocumentManager docmgr = FileDocumentManager.getInstance();
     private PsiDocumentManager psiDocMgr;
+    private static final List<Class<? extends ProblemFinder<?>>> AUXILLARY_FINDER_CLASSES
+            = Arrays.asList(
+            NullyInstrumentedFinder.class,
+            IllegalNonnullFinder.class,
+            IllegalParamOverrideFinder.class,
+            IllegalReturnOverrideFinder.class);
 
     public NullyCompilerStep(@NonNull Project project) {
         psiDocMgr = PsiDocumentManager.getInstance(project);
@@ -170,25 +183,16 @@ public class NullyCompilerStep implements JavaSourceTransformingCompiler {
         CodeAnalyzer analyzer = new CodeAnalyzer();
         analyzer.analyze(ctx);
 
-        ProblemFinder finder = new NullValueProblemFinder();
-        List<NullValueProblem> problems = new ArrayList<NullValueProblem>();
-        problems.addAll(finder.findProblems(ctx));
-        ProblemFinder otherFinder = new IllegalNonnullFinder();
-        problems.addAll(otherFinder.findProblems(ctx));
+        List<NullyProblem> problems = new ArrayList<NullyProblem>(findKnownProblems(ctx));
+        NullValueProblemFinder finder = new NullValueProblemFinder();
+        Collection<NullValueProblem> nvProblems = finder.findProblems(ctx);
+        problems.addAll(nvProblems);
 
-        // this must be done before transforming the code, before the PsiElements mean nothing!
+        // this must be done before transforming the code, before the
+        // PsiElements mean nothing because they were deleted
         addCompilerWarnings(context, jfile, problems);
 
-        boolean changed = insertDetectedPossibleNullChecks(problems);
-
-        NonNullMethodCallCheckInserter inserter = new NonNullMethodCallCheckInserter();
-        copy.accept(inserter);
-        changed |= inserter.insertedAnything();
-
-        //TODO: support SuppressNullChecks granularity
-        ParameterCheckInserter paraminserter = new ParameterCheckInserter();
-        copy.accept(paraminserter);
-        changed |= paraminserter.getModifiedMethods().isEmpty();
+        boolean changed = RuntimeCheckInserter.insertRuntimeChecks(copy, nvProblems);
 
         if (changed) {
             String text = copy.getText();
@@ -201,97 +205,121 @@ public class NullyCompilerStep implements JavaSourceTransformingCompiler {
         }
     }
 
-    private boolean insertDetectedPossibleNullChecks(List<NullValueProblem> problems)
-            throws IncorrectOperationException {
-        boolean changed = false;
-        for (NullValueProblem problem : problems) {
-            PsiElement el = problem.getElement();
-            String oldText = el.getText();
-            PsiElementFactory factory = el.getManager().getElementFactory();
-            NullProblemType type = problem.getType();
-            PsiElement parent = el.getParent();
-            PsiExpression newExp = null;
-            if (type == NULL_ARGUMENT_FOR_NONNULL_PARAMETER
-                    || type == NULL_ASSIGNMENT_TO_NONNULL_VARIABLE) {
-                newExp = factory.createExpressionFromText(
-                        NullyTools.getUnexpectedNullValueCheckString(oldText), parent);
-
-            } else if (type == NULL_RETURN_IN_NONNULL_METHOD) {
-                newExp = factory.createExpressionFromText(NonNullTools.class.getName()
-                        + "." + METHOD_CHECKNONNULLRETURN + "("
-                        + oldText + ")", parent);
+    private static List<NullyProblem> findKnownProblems(AnalysisContext ctx) {
+        List<NullyProblem> problems = new ArrayList<NullyProblem>();
+        for (Class<? extends ProblemFinder<?>> aClass : AUXILLARY_FINDER_CLASSES) {
+            ProblemFinder<?> finder;
+            try {
+                finder = aClass.newInstance();
+            } catch (Exception e) {
+                LOGGER.error("Couldn't instantiate " + aClass.getSimpleName(), e);
+                continue;
             }
-
-            if (newExp != null) {
-                changed = true;
-                el.replace(newExp);
-            }
+            problems.addAll(finder.findProblems(ctx));
         }
-        return changed;
+        return problems;
     }
 
-    private void addCompilerWarnings(@NonNull CompileContext context,
-            @NonNull PsiJavaFile jfile, @NonNull List<NullValueProblem> problems) {
-        for (NullValueProblem problem : problems) {
+    private static void addCompilerWarnings(@NonNull CompileContext context,
+            @NonNull PsiJavaFile jfile, @NonNull List<NullyProblem> problems) {
+        for (NullyProblem problem : problems) {
             addCompilerWarning(context, jfile, problem);
         }
     }
 
-    private void addCompilerWarning(@NonNull CompileContext context,
-            @NonNull PsiJavaFile orig, @NonNull NullValueProblem problem) {
-        PsiElement element = problem.getElement();
-        NullProblemType type = problem.getType();
+    private static void addCompilerWarning(@NonNull CompileContext context,
+            @NonNull PsiJavaFile orig, @NonNull NullyProblem problem) {
         String desc;
-        if (type == NULL_ARGUMENT_FOR_NONNULL_PARAMETER) {
-            PsiMethod method = NullyTools.getCalledMethod(element);
-            PsiMethodCallExpression call = PsiTreeUtil.getParentOfType(element,
-                    PsiMethodCallExpression.class);
+        if (problem instanceof NullValueProblem) {
+            NullValueProblem nvProblem = (NullValueProblem) problem;
+            desc = getWarningForNullProblem(nvProblem);
 
-            int num = getIndexOfArgument(call, element);
-            String numStr;
-            if (num == -1) numStr = "";
-            else numStr = num + " ";
+        } else if (problem instanceof IllegalReturnOverrideProblem) {
+            IllegalReturnOverrideProblem overrideProblem
+                    = (IllegalReturnOverrideProblem) problem;
 
-            desc = "Argument " + numStr + "passed to method '" + method.getName()
-                    + "' may be illegally null";
+            PsiMethod method = overrideProblem.getElement();
+            Collection<PsiMethod> badSupers = overrideProblem.getBadSupers();
+            ImportantSuperMethodInfo important
+                    = NullyTools.getImportantSuperMethod(method, badSupers);
+            OverrideType overType = important.getType();
+            String word = getWordForType(overType);
 
-        } else if (type == NULL_ASSIGNMENT_TO_NONNULL_VARIABLE) {
-            PsiVariable var = NullyTools.getAssignedVariable(element);
-            desc = "Value assigned to '" + var.getName()
-                    + "' may be illegally null";
-
-        } else if (type == NULL_RETURN_IN_NONNULL_METHOD) {
-            desc = "Returned value may be ilegally null";
-/*
-        } else if (type == INVALID_NONNULL_OVERRIDE) {
-            ImportantSuperMethodInfo importantSuperMethodInfo = NullyTools.getBadOverrideInfo(problem);
-            OverrideType overType = importantSuperMethodInfo.getType();
-            String word;
-            if (overType == OVERRIDES) word = "overrides";
-            else if (overType == IMPLEMENTS) word = "implements";
-            else {
-                LOGGER.error("invalid override type");
-                return;
-            }
-
-            PsiMethod overridden = importantSuperMethodInfo.getOverridden();
-            desc = "Method " + ((PsiMethod) element).getName() + " illegal "
+            PsiMethod overridden = important.getOverridden();
+            desc = "Method " + method.getName() + " illegal "
                     + word + " " + NullyTools.getQualifiedMemberName(overridden)
                     + " without matching @" + NonNull.class.getSimpleName()
                     + " declaration";
-            */
         } else {
+            //TODO: add warnings for the rest of the problem types for compiler
             return;
         }
 
-        int off = element.getTextOffset();
+        int off = problem.getElement().getTextOffset();
         String text = orig.getText();
+        String url = orig.getVirtualFile().getUrl();
         int line = StringUtil.offsetToLineNumber(text, off) + 1;
-        context.addMessage(WARNING, desc, orig.getVirtualFile().getUrl(),
-                line, off - StringUtil.lineColToOffset(text, line-1, 0) + 1);
+        int col = off - StringUtil.lineColToOffset(text, line - 1, 0) + 1;
+        context.addMessage(WARNING, desc, url, line, col);
     }
 
-    private int getIndexOfArgument(@NonNull PsiMethodCallExpression call,
+    private static String getWordForType(OverrideType overType) {
+        String word;
+        if (overType == OVERRIDES) {
+            word = "overrides";
+        } else if (overType == IMPLEMENTS) {
+            word = "implements";
+        } else {
+            throw new IllegalStateException("overtype == " + overType);
+        }
+        return word;
+    }
+
+    private static String getWarningForNullProblem(NullValueProblem nvProblem) {
+        NullProblemType type = nvProblem.getType();
+        String desc;
+        if (type == NULL_ARGUMENT_FOR_NONNULL_PARAMETER) {
+            desc = getWarningForNullArgument(nvProblem.getElement());
+
+        } else if (type == NULL_ASSIGNMENT_TO_NONNULL_VARIABLE) {
+            desc = getWarningForNullAssignment(nvProblem.getElement());
+
+        } else if (type == NULL_RETURN_IN_NONNULL_METHOD) {
+            desc = "Returned value may be ilegally null";
+        } else {
+            desc = null;
+        }
+        return desc;
+    }
+
+    private static String getWarningForNullAssignment(PsiElement element) {
+        String desc;
+        PsiVariable var = NullyTools.getAssignedVariable(element);
+        desc = "Value assigned to '" + var.getName()
+                + "' may be illegally null";
+        return desc;
+    }
+
+    private static String getWarningForNullArgument(PsiElement element) {
+        String desc;
+        PsiMethod method = NullyTools.getCalledMethod(element);
+        PsiMethodCallExpression call = PsiTreeUtil.getParentOfType(element,
+                PsiMethodCallExpression.class);
+
+        int num = getIndexOfArgument(call, element);
+        String numStr;
+        if (num == -1) {
+            numStr = "";
+        } else {
+            numStr = num + " ";
+        }
+
+        desc = "Argument " + numStr + "passed to method '" + method.getName()
+                + "' may be illegally null";
+        return desc;
+    }
+
+    private static int getIndexOfArgument(@NonNull PsiMethodCallExpression call,
             @NonNull PsiElement desiredArg) {
         int num = -1;
         int i = 1;

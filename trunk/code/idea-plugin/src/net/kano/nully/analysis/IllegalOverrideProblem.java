@@ -35,7 +35,7 @@ package net.kano.nully.analysis;
 
 import com.intellij.psi.PsiMethod;
 
-public abstract class IllegalOverrideProblem extends NullyPsiProblem {
+public abstract class IllegalOverrideProblem extends NullyProblem {
     protected IllegalOverrideProblem(PsiMethod element) {
         super(element);
     }

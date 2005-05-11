@@ -35,10 +35,10 @@ package net.kano.nully.analysis;
 
 import com.intellij.psi.PsiElement;
 
-public abstract class NullyPsiProblem {
+public abstract class NullyProblem {
     private PsiElement element;
 
-    protected NullyPsiProblem(PsiElement element) {
+    protected NullyProblem(PsiElement element) {
         this.element = element;
     }
 

@@ -34,9 +34,9 @@
 package net.kano.nully.analysis.nulls;
 
 import com.intellij.psi.PsiElement;
-import net.kano.nully.analysis.NullyPsiProblem;
+import net.kano.nully.analysis.NullyProblem;
 
-public class NullValueProblem extends NullyPsiProblem {
+public class NullValueProblem extends NullyProblem {
     private final NullProblemType type;
 
     public NullValueProblem(NullProblemType type, PsiElement element) {
