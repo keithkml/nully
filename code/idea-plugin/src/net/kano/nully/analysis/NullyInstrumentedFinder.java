@@ -44,14 +44,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-public class NullyInstrumentedFinder implements ProblemFinder {
-    @NonNull public Collection findProblems(
+public class NullyInstrumentedFinder implements ProblemFinder<NullyInstrumentedProblem> {
+    @NonNull public Collection<NullyInstrumentedProblem> findProblems(
             @NonNull AnalysisContext context) {
         PsiJavaFile orig = context.getFileOrig();
         NullyInstrumentedVisitor visitor = new NullyInstrumentedVisitor();
         orig.accept(visitor);
 
-        List<NullyPsiProblem> problems = new ArrayList<NullyPsiProblem>();
+        List<NullyInstrumentedProblem> problems = new ArrayList<NullyInstrumentedProblem>();
         for (PsiAnnotation anno : visitor.getBadElements()) {
             problems.add(new NullyInstrumentedProblem(anno));
         }
@@ -65,9 +65,7 @@ public class NullyInstrumentedFinder implements ProblemFinder {
             super.visitModifierList(list);
 
             PsiAnnotation anno = list.findAnnotation(NullyInstrumented.class.getName());
-            if (anno != null) {
-                badElements.add(anno);
-            }
+            if (anno != null) badElements.add(anno);
         }
 
         public List<PsiAnnotation> getBadElements() {

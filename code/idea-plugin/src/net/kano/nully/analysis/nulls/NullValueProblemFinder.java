@@ -76,8 +76,9 @@ public class NullValueProblemFinder implements ProblemFinder<NullValueProblem> {
     private AnalysisContext context = null;
     private List<NullValueProblem> problems = null;
 
-    public synchronized @NonNull Collection findProblems(
+    public synchronized @NonNull Collection<NullValueProblem> findProblems(
             @NonNull AnalysisContext context) {
+        //TODO: ignore illegal @NonNull declarations (primitives, etc)
         this.context = context;
         this.problems = new ArrayList<NullValueProblem>();
         for (SootMethod method : context.getSootMethods()) {

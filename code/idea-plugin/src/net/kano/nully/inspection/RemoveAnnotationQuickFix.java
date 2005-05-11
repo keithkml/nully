@@ -39,19 +39,20 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiAnnotation;
 import com.intellij.util.IncorrectOperationException;
+import net.kano.nully.NonNull;
 
 public class RemoveAnnotationQuickFix implements LocalQuickFix {
     private static final Logger LOGGER
             = Logger.getInstance(RemoveAnnotationQuickFix.class.getName());
-    private String className;
+    private final String className;
 
-    public RemoveAnnotationQuickFix(String className) {
+    public RemoveAnnotationQuickFix(@NonNull String className) {
         this.className = className;
     }
 
     public String getName() {
         String displayable = className;
-        int dot = displayable.indexOf('.');
+        int dot = displayable.lastIndexOf('.');
         if (dot != -1) displayable = displayable.substring(dot + 1);
         return "Remove @" + displayable;
     }

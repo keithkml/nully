@@ -44,14 +44,15 @@ import com.intellij.util.IncorrectOperationException;
 import com.intellij.openapi.diagnostic.Logger;
 import net.kano.nully.NullyTools;
 import net.kano.nully.NullParameterException;
+import net.kano.nully.NonNull;
 
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
 
-public class ParameterCheckInserter extends PsiRecursiveElementVisitor {
+class ParameterCheckInserterVisitor extends PsiRecursiveElementVisitor {
     private static final Logger LOGGER
-            = Logger.getInstance(ParameterCheckInserter.class.getName());
+            = Logger.getInstance(ParameterCheckInserterVisitor.class.getName());
     private Set<PsiMethod> modifiedMethods = new HashSet<PsiMethod>();
 
     public void visitMethod(PsiMethod method) {
@@ -75,11 +76,12 @@ public class ParameterCheckInserter extends PsiRecursiveElementVisitor {
                 + "}";
     }
 
-    private void addParameterChecks(PsiMethod method)
+    private void addParameterChecks(@NonNull PsiMethod method)
             throws IncorrectOperationException {
         PsiElementFactory factory = method.getManager().getElementFactory();
         PsiParameter[] params = method.getParameterList().getParameters();
         PsiCodeBlock body = method.getBody();
+        if (body == null) return;
         PsiElement addAfter = body.getLBrace();
         for (int pi = 0; pi < params.length; pi++) {
             PsiParameter param = params[pi];

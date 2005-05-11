@@ -35,7 +35,7 @@ package net.kano.nully.analysis;
 
 import com.intellij.psi.PsiAnnotation;
 
-public class NullyInstrumentedProblem extends NullyPsiProblem {
+public class NullyInstrumentedProblem extends NullyProblem {
     public NullyInstrumentedProblem(PsiAnnotation anno) {
         super(anno);
     }

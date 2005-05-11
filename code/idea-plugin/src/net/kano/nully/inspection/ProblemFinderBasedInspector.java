@@ -42,7 +42,7 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiMethod;
 import net.kano.nully.analysis.AnalysisContext;
-import net.kano.nully.analysis.NullyPsiProblem;
+import net.kano.nully.analysis.NullyProblem;
 import net.kano.nully.analysis.ProblemFinder;
 
 import java.util.ArrayList;
@@ -50,7 +50,7 @@ import java.util.EnumSet;
 import java.util.List;
 
 public abstract class ProblemFinderBasedInspector<F extends ProblemFinder<P>,
-        P extends NullyPsiProblem> extends AbstractNullyInspection {
+        P extends NullyProblem> extends AbstractNullyInspection {
     protected static final Logger LOGGER
             = Logger.getInstance(IllegalOverrideInspector.class.getName());
 

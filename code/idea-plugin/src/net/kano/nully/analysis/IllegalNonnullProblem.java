@@ -35,7 +35,7 @@ package net.kano.nully.analysis;
 
 import com.intellij.psi.PsiModifierListOwner;
 
-public class IllegalNonnullProblem extends NullyPsiProblem {
+public class IllegalNonnullProblem extends NullyProblem {
     public IllegalNonnullProblem(PsiModifierListOwner owner) {
         super(owner);
     }
