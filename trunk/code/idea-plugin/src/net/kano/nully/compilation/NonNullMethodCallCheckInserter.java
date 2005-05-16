@@ -43,6 +43,7 @@ import com.intellij.util.IncorrectOperationException;
 import com.intellij.openapi.diagnostic.Logger;
 import net.kano.nully.NullyTools;
 import net.kano.nully.NonNull;
+import net.kano.nully.NullCheckLevel;
 
 class NonNullMethodCallCheckInserter extends PsiRecursiveElementVisitor {
     private static final Logger LOGGER
@@ -53,8 +54,12 @@ class NonNullMethodCallCheckInserter extends PsiRecursiveElementVisitor {
     public void visitMethodCallExpression(PsiMethodCallExpression expression) {
         super.visitMethodCallExpression(expression);
 
+        boolean should = NullyTools.shouldCheckNulls(expression,
+                NullCheckLevel.RUNTIME);
+        if (!should) return;
+
         PsiMethod calledMethod = expression.resolveMethod();
-        if (NullyTools.hasNonNullAnnotation(calledMethod)
+        if (NullyTools.hasValidNonNullAnnotation(calledMethod)
                 && !NullyTools.isNonnullCheckMethod(calledMethod)
                 && !parentIsNonnullCheckMethod(expression)) {
             PsiElementFactory factory = expression.getManager().getElementFactory();

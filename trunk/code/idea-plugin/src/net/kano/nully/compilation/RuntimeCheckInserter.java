@@ -33,6 +33,9 @@
 
 package net.kano.nully.compilation;
 
+import static net.kano.nully.analysis.nulls.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
+import static net.kano.nully.analysis.nulls.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
+import static net.kano.nully.analysis.nulls.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiElementFactory;
 import com.intellij.psi.PsiExpression;
@@ -41,6 +44,7 @@ import com.intellij.util.IncorrectOperationException;
 import net.kano.nully.NonNullTools;
 import net.kano.nully.NullyTools;
 import net.kano.nully.NonNull;
+import net.kano.nully.NullCheckLevel;
 import net.kano.nully.analysis.nulls.NullProblemType;
 import net.kano.nully.analysis.nulls.NullValueProblem;
 
@@ -50,7 +54,6 @@ public class RuntimeCheckInserter {
     public static boolean insertRuntimeChecks(@NonNull PsiJavaFile copy,
             @NonNull Collection<? extends NullValueProblem> nvProblems)
             throws IncorrectOperationException {
-        //TODO: support SuppressNullChecks granularity
         boolean changed = false;
         changed |= insertDetectedPossibleNullChecks(nvProblems);
 
@@ -68,19 +71,23 @@ public class RuntimeCheckInserter {
             @NonNull Collection<? extends NullValueProblem> problems)
             throws IncorrectOperationException {
         boolean changed = false;
+
         for (NullValueProblem problem : problems) {
             PsiElement el = problem.getElement();
+            if (!NullyTools.shouldCheckNulls(el, NullCheckLevel.RUNTIME)) continue;
+
             String oldText = el.getText();
             PsiElementFactory factory = el.getManager().getElementFactory();
             NullProblemType type = problem.getType();
             PsiElement parent = el.getParent();
             PsiExpression newExp = null;
-            if (type == NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER
-                    || type == NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE) {
+
+            if (type == NULL_ARGUMENT_FOR_NONNULL_PARAMETER
+                    || type == NULL_ASSIGNMENT_TO_NONNULL_VARIABLE) {
                 newExp = factory.createExpressionFromText(
                         NullyTools.getUnexpectedNullValueCheckString(oldText), parent);
 
-            } else if (type == NullProblemType.NULL_RETURN_IN_NONNULL_METHOD) {
+            } else if (type == NULL_RETURN_IN_NONNULL_METHOD) {
                 newExp = factory.createExpressionFromText(NonNullTools.class.getName()
                         + "." + NullyTools.METHOD_CHECKNONNULLRETURN + "("
                         + oldText + ")", parent);

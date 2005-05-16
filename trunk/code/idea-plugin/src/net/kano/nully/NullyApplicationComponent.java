@@ -36,7 +36,7 @@ package net.kano.nully;
 import com.intellij.codeInspection.InspectionToolProvider;
 import com.intellij.openapi.components.ApplicationComponent;
 import net.kano.nully.inspection.IllegalOverrideInspector;
-import net.kano.nully.inspection.IllegalNonnullInspector;
+import net.kano.nully.inspection.IllegalAnnotationInspector;
 import net.kano.nully.inspection.NullProblemInspector;
 
 public class NullyApplicationComponent implements ApplicationComponent, InspectionToolProvider {
@@ -59,7 +59,8 @@ public class NullyApplicationComponent implements ApplicationComponent, Inspecti
     }
 
     public Class[] getInspectionClasses() {
+
         return new Class[] { NullProblemInspector.class,
-            IllegalOverrideInspector.class, IllegalNonnullInspector.class };
+            IllegalOverrideInspector.class, IllegalAnnotationInspector.class };
     }
 }

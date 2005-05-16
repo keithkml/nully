@@ -145,7 +145,6 @@ class Java5CodeStripVisitor extends PsiRecursiveElementVisitor {
         super.visitMethodCallExpression(expression);
 
         transformVarargsCall(expression);
-
     }
 
     /**

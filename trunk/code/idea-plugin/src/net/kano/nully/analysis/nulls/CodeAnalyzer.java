@@ -50,6 +50,7 @@ import net.kano.nully.OffsetsTracker;
 import net.kano.nully.UnexpectedNullValueException;
 import net.kano.nully.NonNull;
 import net.kano.nully.Nullable;
+import net.kano.nully.SootTools;
 import net.kano.nully.analysis.nulls.soot.JimpleMethodPreprocessor;
 import net.kano.nully.analysis.nulls.soot.NullPointerTagger;
 import net.kano.nully.analysis.nulls.soot.PsiJavaFileClassProvider;
@@ -119,7 +120,6 @@ public class CodeAnalyzer {
 //        if (!checker.shouldProcess()) return false;
 
         PsiJavaFile fileCopy = context.getFileCopy();
-        //TODO: optimize imports is necessary?
         try {
             // avoid unnecessarily referencing classes which can't be resolved
             CodeStyleManager.getInstance(fileCopy.getManager()).optimizeImports(fileCopy);
@@ -228,7 +228,7 @@ public class CodeAnalyzer {
                 JInvokeStmt invokeStmt = (JInvokeStmt) unit;
                 InvokeExpr invokeExpr = invokeStmt.getInvokeExpr();
                 Chain locals = body.getLocals();
-                String name = NullyTools.getUnusedLocalName(locals);
+                String name = SootTools.getUnusedLocalName(locals);
                 Local local = new JimpleLocal(name, invokeExpr.getType());
                 locals.add(local);
                 JAssignStmt stmt = new JAssignStmt(local, invokeExpr);
@@ -278,7 +278,7 @@ public class CodeAnalyzer {
             scene.addBasicClass(stripped);
         }
 
-        //TODO: add all resolvable classes
+        //TOLATER: add all resolvable classes
         // add any classes we might reference
         scene.addBasicClass(UnexpectedNullValueException.class.getName());
         scene.addBasicClass(NullParameterException.class.getName());

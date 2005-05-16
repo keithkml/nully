@@ -31,18 +31,43 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.inspection;
 
-import static java.lang.annotation.ElementType.CONSTRUCTOR;
-import static java.lang.annotation.ElementType.METHOD;
-import static java.lang.annotation.ElementType.PACKAGE;
-import static java.lang.annotation.ElementType.TYPE;
-import java.lang.annotation.Retention;
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
-import java.lang.annotation.Target;
+import static com.intellij.codeInspection.ProblemHighlightType.GENERIC_ERROR_OR_WARNING;
+import net.kano.nully.analysis.ProblemFinder;
+import net.kano.nully.analysis.NullyProblem;
+import net.kano.nully.analysis.NullyInstrumentedFinder;
+import net.kano.nully.analysis.NullyInstrumentedProblem;
+import net.kano.nully.NullyInstrumented;
 
-@Retention(RUNTIME)
-@Target({CONSTRUCTOR, METHOD, TYPE, PACKAGE})
-public @interface SuppressNullChecks {
-    NullCheckLevel[] value() default NullCheckLevel.ALL;
+import java.util.EnumSet;
+import java.util.List;
+
+import com.intellij.codeInspection.InspectionManager;
+import com.intellij.codeInspection.ProblemDescriptor;
+import com.intellij.codeInspection.ProblemHighlightType;
+import com.intellij.codeInspection.LocalQuickFix;
+
+public class NullyInstrumentedInspector extends ProblemFinderBasedInspector<NullyInstrumentedFinder, NullyInstrumentedProblem> {
+    protected NullyInstrumentedFinder getFinderInstance() {
+        return new NullyInstrumentedFinder();
+    }
+
+    protected EnumSet<InspectionType> getInspectionTypes() {
+        return EnumSet.of(InspectionType.FILE);
+    }
+
+    protected void addProblems(InspectionManager manager,
+            List<ProblemDescriptor> problems,
+            NullyInstrumentedProblem problem) {
+    }
+
+    public String getDisplayName() {
+        return "Illegal @" + NullyInstrumented.class.getSimpleName()
+                + " annotation";
+    }
+
+    public String getShortName() {
+        return "NullyInstrumented";
+    }
 }

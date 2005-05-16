@@ -3,19 +3,28 @@ package net.kano.nully;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.Key;
 import com.intellij.psi.PsiAnnotation;
+import com.intellij.psi.PsiAnnotationMemberValue;
+import com.intellij.psi.PsiAnnotationParameterList;
 import com.intellij.psi.PsiAssignmentExpression;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiClassType;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiElementFactory;
 import com.intellij.psi.PsiExpression;
+import com.intellij.psi.PsiField;
+import com.intellij.psi.PsiJavaCodeReferenceElement;
 import com.intellij.psi.PsiJavaFile;
+import com.intellij.psi.PsiLocalVariable;
 import com.intellij.psi.PsiManager;
 import com.intellij.psi.PsiMember;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiMethodCallExpression;
 import com.intellij.psi.PsiModifierList;
 import com.intellij.psi.PsiModifierListOwner;
+import com.intellij.psi.PsiNameValuePair;
+import com.intellij.psi.PsiParameter;
+import com.intellij.psi.PsiPrimitiveType;
+import com.intellij.psi.PsiRecursiveElementVisitor;
 import com.intellij.psi.PsiReferenceExpression;
 import com.intellij.psi.PsiStatement;
 import com.intellij.psi.PsiType;
@@ -26,15 +35,14 @@ import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
 import net.kano.nully.analysis.AnalysisContext;
 import net.kano.nully.analysis.nulls.soot.MayBeNullTag;
-import soot.Local;
 import soot.SootMethod;
 import soot.ValueBox;
 import soot.jimple.JimpleBody;
-import soot.tagkit.Host;
 import soot.tagkit.SourceLnPosTag;
 import soot.tagkit.Tag;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -117,15 +125,11 @@ public final class NullyTools {
     public static PsiMember getPsiMemberCopy(AnalysisContext context, SootMethod method) {
         OffsetsTracker tracker = context.getTracker();
         PsiJavaFile fileCopy = context.getFileCopy();
-        SourceLnPosTag srcTag = getSourceTag(method);
+        SourceLnPosTag srcTag = SootTools.getSourceTag(method);
         if (srcTag == null) return null;
         PsiElement el = tracker.getElementAtPosition(fileCopy, srcTag);
         if (el == null) return null;
         return PsiTreeUtil.getParentOfType(el, PsiMember.class);
-    }
-
-    public static SourceLnPosTag getSourceTag(Host host) {
-        return (SourceLnPosTag) host.getTag("SourceLnPosTag");
     }
 
     public static PsiVariable getAssignedVariable(PsiElement element) {
@@ -146,9 +150,7 @@ public final class NullyTools {
     }
 
     public static boolean hasNonNullAnnotation(@NonNull PsiModifierListOwner owner) {
-        PsiModifierList mods = owner.getModifierList();
-        PsiAnnotation anno = mods.findAnnotation(NonNull.class.getName());
-        return anno != null;
+        return getNonnullAnnotation(owner) != null;
     }
 
     public static PsiMethodCallExpression getMethodCallChild(@NonNull PsiExpression initializer) {
@@ -160,15 +162,6 @@ public final class NullyTools {
                     PsiMethodCallExpression.class);
         }
         return call;
-    }
-
-    public static boolean hasMayBeNullTag(@NonNull Host host) {
-        return host.hasTag("MayBeNull");
-    }
-
-    public static int getOffset(@NonNull OffsetsTracker tracker,
-            @NonNull SourceLnPosTag argSrcTag) {
-        return tracker.getOffset(argSrcTag.startLn(), argSrcTag.startPos());
     }
 
     public static String getJavaNameForClass(@NonNull PsiClass cls) {
@@ -314,15 +307,21 @@ public final class NullyTools {
     public static boolean shouldCheckNulls(@NonNull PsiMember member) {
         if (hasSuppressNullChecksAnnotation(member)) return false;
         PsiClass outer = member.getContainingClass();
-        if (outer == null) return true;
-        else return shouldCheckNulls(outer);
+        if (outer == null) {
+            return true;
+        } else {
+            return shouldCheckNulls(outer);
+        }
     }
 
     private static boolean shouldCheckNullsForClass(@NonNull PsiClass cls) {
         if (hasSuppressNullChecksAnnotation(cls)) return false;
         PsiClass outer = cls.getContainingClass();
-        if (outer == null) return true;
-        else return shouldCheckNullsForClass(outer);
+        if (outer == null) {
+            return true;
+        } else {
+            return shouldCheckNullsForClass(outer);
+        }
 
 //        if (outer == null) {
 //            PsiFile containingFile = cls.getContainingFile();
@@ -339,30 +338,86 @@ public final class NullyTools {
                 + METHOD_CHECKNONNULLVALUE + "(" + oldText + ")";
     }
 
+    public static Set<PsiAnnotation> getNullyAnnotations(@NonNull PsiModifierListOwner owner) {
+        PsiAnnotation nonnull = getNonnullAnnotation(owner);
+        PsiAnnotation nullable = getNullableAnnotation(owner);
+        if (nonnull == null && nullable == null) return Collections.emptySet();
+        if (nonnull == null) return Collections.singleton(nullable);
+        if (nullable == null) return Collections.singleton(nonnull);
+        return new HashSet<PsiAnnotation>(Arrays.asList(nonnull, nullable));
+    }
+
+    public static PsiAnnotation getNullableAnnotation(PsiModifierListOwner owner) {
+        return owner.getModifierList()
+                .findAnnotation(Nullable.class.getName());
+    }
+
     public static PsiAnnotation getNonnullAnnotation(@NonNull PsiModifierListOwner owner) {
         return owner.getModifierList().findAnnotation(NonNull.class.getName());
     }
 
+    public static String getVariableTypeString(PsiVariable psiVariable) {
+        String typeStr;
+        if (psiVariable instanceof PsiParameter) {
+            typeStr = "parameter";
+        } else if (psiVariable instanceof PsiLocalVariable) {
+            typeStr = "variable";
+        } else {
+            typeStr = "variable";
+            LOGGER.error("PsiVariable was " + psiVariable.getClass().getName());
+        }
+        return typeStr;
+    }
+
+    public static boolean hasValidNonNullAnnotation(PsiModifierListOwner param) {
+        PsiType type;
+        if (param instanceof PsiVariable) {
+            PsiVariable variable = (PsiVariable) param;
+            type = variable.getType();
+        } else if (param instanceof PsiMethod) {
+            PsiMethod method = (PsiMethod) param;
+            type = method.getReturnType();
+        } else {
+            type = null;
+        }
+        return (type == null || !(type instanceof PsiPrimitiveType))
+                && hasNonNullAnnotation(param);
+    }
+
+    public static boolean shouldCheckNulls(PsiElement expression,
+            NullCheckLevel level) {
+        return shouldCheckNulls(expression, Collections.singleton(level));
+    }
+
     /**
-     * Returns a name for a new local which does not conflict with any other
-     * local in {@code locals}.
-     *
-     * @param locals a list of locals
-     * @return a name for a new local whose name is unique to {@code locals}
+     * Must match all specified levels
      */
-    public static @NonNull String getUnusedLocalName(@NonNull Collection<Local> locals) {
-        for (int r = 0; r < 1000000; r++) {
-            String tryName = "$r" + r;
-            boolean good = true;
-            for (Local local : locals) {
-                if (local.getName().equals(tryName)) {
-                    good = false;
-                    break;
+    public static boolean shouldCheckNulls(PsiElement el,
+            Collection<NullCheckLevel> levels) {
+        PsiModifierListOwner owner = PsiTreeUtil.getParentOfType(el,
+                PsiModifierListOwner.class, false);
+        for (; owner != null; owner = PsiTreeUtil.getParentOfType(owner,
+                PsiModifierListOwner.class, true)) {
+            PsiModifierList mods = owner.getModifierList();
+            PsiAnnotation anno = mods.findAnnotation(SuppressNullChecks.class.getName());
+            if (anno == null) continue;
+            PsiAnnotationParameterList params = anno.getParameterList();
+            PsiNameValuePair[] attrs = params.getAttributes();
+            if (attrs.length == 0) {
+                // if there are no parameters, ALL is the default
+                return false;
+            }
+            for (PsiNameValuePair pair : attrs) {
+                String name = pair.getName();
+                if (name == null || name.equals(PsiAnnotation.DEFAULT_REFERENCED_METHOD_NAME)) {
+                    PsiAnnotationMemberValue value = pair.getValue();
+                    SuppressNullChecksVisitor visitor = new SuppressNullChecksVisitor(levels);
+                    value.accept(visitor);
+                    if (visitor.isSuppress()) return false;
                 }
             }
-            if (good) return tryName;
         }
-        throw new IllegalStateException("could not find name. locals: " + locals);
+        return true;
     }
 
 
@@ -371,6 +426,45 @@ public final class NullyTools {
             String name1 = getQualifiedMemberName(method);
             String name2 = getQualifiedMemberName(method1);
             return name1.compareToIgnoreCase(name2);
+        }
+    }
+
+    private static class SuppressNullChecksVisitor extends PsiRecursiveElementVisitor {
+        private Collection<String> requestedNames = new HashSet<String>(5);
+        private Collection<String> foundNames = new HashSet<String>(5);
+        private boolean all = false;
+
+        public SuppressNullChecksVisitor(Collection<NullCheckLevel> levels) {
+            for (NullCheckLevel level : levels) {
+                requestedNames.add(level.name());
+            }
+        }
+
+        public void visitReferenceElement(PsiJavaCodeReferenceElement reference) {
+            super.visitReferenceElement(reference);
+
+            if (all) return;
+
+            PsiElement resolved = reference.resolve();
+            if (!(resolved instanceof PsiField)) return;
+
+            PsiField field = (PsiField) resolved;
+            String className = field.getContainingClass().getQualifiedName();
+            if (className == null) return;
+            String fieldName = field.getName();
+            if (className.equals(NullCheckLevel.class.getName())) {
+                if (fieldName.equals(NullCheckLevel.ALL.name())) {
+                    all = true;
+                    return;
+                }
+                if (requestedNames.contains(fieldName)) {
+                    foundNames.add(fieldName);
+                }
+            }
+        }
+
+        public boolean isSuppress() {
+            return all || foundNames.containsAll(requestedNames);
         }
     }
 }

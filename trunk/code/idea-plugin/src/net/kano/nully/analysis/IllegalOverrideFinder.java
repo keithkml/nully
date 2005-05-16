@@ -37,13 +37,16 @@ import java.util.Collection;
 import java.util.List;
 import java.util.ArrayList;
 
-public class IllegalOverrideFinder implements ProblemFinder<IllegalOverrideProblem> {
-    public Collection<IllegalOverrideProblem> findProblems(AnalysisContext context) {
+public class IllegalOverrideFinder implements ProblemFinder<IllegalOverrideProblem<?>> {
+    public Collection<IllegalOverrideProblem<?>> findProblems(AnalysisContext context) {
+        List<IllegalOverrideProblem<?>> problems = new ArrayList<IllegalOverrideProblem<?>>();
+
         IllegalParamOverrideFinder paramFinder = new IllegalParamOverrideFinder();
-        List<IllegalOverrideProblem> problems = new ArrayList<IllegalOverrideProblem>();
         problems.addAll(paramFinder.findProblems(context));
+
         IllegalReturnOverrideFinder returnFinder = new IllegalReturnOverrideFinder();
         problems.addAll(returnFinder.findProblems(context));
+
         return problems;
     }
 }

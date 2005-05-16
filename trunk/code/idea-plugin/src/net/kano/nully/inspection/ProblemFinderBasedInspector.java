@@ -44,13 +44,15 @@ import com.intellij.psi.PsiMethod;
 import net.kano.nully.analysis.AnalysisContext;
 import net.kano.nully.analysis.NullyProblem;
 import net.kano.nully.analysis.ProblemFinder;
+import net.kano.nully.NullCheckLevel;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 
 public abstract class ProblemFinderBasedInspector<F extends ProblemFinder<P>,
-        P extends NullyProblem> extends AbstractNullyInspection {
+        P extends NullyProblem<?>>
+        extends AbstractNullyInspection {
     protected static final Logger LOGGER
             = Logger.getInstance(IllegalOverrideInspector.class.getName());
 
@@ -73,7 +75,7 @@ public abstract class ProblemFinderBasedInspector<F extends ProblemFinder<P>,
         if (!(file instanceof PsiJavaFile)) return null;
         if (!getInspectionTypes().contains(InspectionType.FILE)) return null;
 
-        AnalysisContext context = new AnalysisContext();
+        AnalysisContext context = createAnalysisContext();
         PsiJavaFile jfile = (PsiJavaFile) file;
         try {
             prepareContextForFile(context, jfile);
@@ -84,6 +86,12 @@ public abstract class ProblemFinderBasedInspector<F extends ProblemFinder<P>,
         }
     }
 
+    private AnalysisContext createAnalysisContext() {
+        AnalysisContext context = new AnalysisContext();
+        context.addCheckLevel(NullCheckLevel.EDITOR);
+        return context;
+    }
+
     public ProblemDescriptor[] checkMethod(PsiMethod method,
             InspectionManager manager, boolean isOnTheFly) {
         if (!getInspectionTypes().contains(InspectionType.METHOD)) return null;
@@ -91,7 +99,7 @@ public abstract class ProblemFinderBasedInspector<F extends ProblemFinder<P>,
         PsiJavaFile jfile = getParentJavaFile(method);
         if (jfile == null) return null;
 
-        AnalysisContext context = new AnalysisContext();
+        AnalysisContext context = createAnalysisContext();
         try {
             prepareContextForMethod(context, jfile, method);
 
@@ -108,12 +116,11 @@ public abstract class ProblemFinderBasedInspector<F extends ProblemFinder<P>,
         PsiJavaFile jfile = getParentJavaFile(field);
         if (jfile == null) return null;
 
-        AnalysisContext context = new AnalysisContext();
+        AnalysisContext context = createAnalysisContext();
         try {
             prepareContextForField(context, jfile);
 
-            ProblemDescriptor[] problems = findProblems(context, manager);
-            return problems;
+            return findProblems(context, manager);
         } finally {
             cleanUp(context);
         }

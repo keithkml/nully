@@ -31,18 +31,22 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.analysis;
 
-import static java.lang.annotation.ElementType.CONSTRUCTOR;
-import static java.lang.annotation.ElementType.METHOD;
-import static java.lang.annotation.ElementType.PACKAGE;
-import static java.lang.annotation.ElementType.TYPE;
-import java.lang.annotation.Retention;
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
-import java.lang.annotation.Target;
+import java.util.Collection;
+import java.util.List;
+import java.util.ArrayList;
 
-@Retention(RUNTIME)
-@Target({CONSTRUCTOR, METHOD, TYPE, PACKAGE})
-public @interface SuppressNullChecks {
-    NullCheckLevel[] value() default NullCheckLevel.ALL;
+public class IllegalAnnotationFinder implements ProblemFinder<IllegalAnnotationProblem> {
+    public Collection<IllegalAnnotationProblem> findProblems(AnalysisContext context) {
+        List<IllegalAnnotationProblem> problems = new ArrayList<IllegalAnnotationProblem>();
+
+        NullyInstrumentedFinder instFinder = new NullyInstrumentedFinder();
+        problems.addAll(instFinder.findProblems(context));
+
+        PrimitiveAnnotationFinder returnFinder = new PrimitiveAnnotationFinder();
+        problems.addAll(returnFinder.findProblems(context));
+
+        return problems;
+    }
 }

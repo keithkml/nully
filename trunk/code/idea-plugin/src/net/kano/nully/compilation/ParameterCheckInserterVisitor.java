@@ -45,6 +45,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import net.kano.nully.NullyTools;
 import net.kano.nully.NullParameterException;
 import net.kano.nully.NonNull;
+import net.kano.nully.NullCheckLevel;
 
 import java.util.Set;
 import java.util.HashSet;
@@ -57,6 +58,9 @@ class ParameterCheckInserterVisitor extends PsiRecursiveElementVisitor {
 
     public void visitMethod(PsiMethod method) {
         super.visitMethod(method);
+
+        if (!NullyTools.shouldCheckNulls(method, NullCheckLevel.RUNTIME)) return;
+
         try {
             addParameterChecks(method);
             modifiedMethods.add(method);
@@ -85,7 +89,7 @@ class ParameterCheckInserterVisitor extends PsiRecursiveElementVisitor {
         PsiElement addAfter = body.getLBrace();
         for (int pi = 0; pi < params.length; pi++) {
             PsiParameter param = params[pi];
-            if (!NullyTools.hasNonNullAnnotation(param)) continue;
+            if (!NullyTools.hasValidNonNullAnnotation(param)) continue;
 
             PsiElement el = factory.createStatementFromText(
                     makeParamCheckString(param, pi), body);

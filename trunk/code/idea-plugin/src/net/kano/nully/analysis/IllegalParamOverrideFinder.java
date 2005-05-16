@@ -33,6 +33,7 @@
 
 package net.kano.nully.analysis;
 
+import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiParameter;
@@ -56,10 +57,25 @@ public class IllegalParamOverrideFinder implements ProblemFinder<IllegalParamOve
         IllegalParamOverrideVisitor visitor = new IllegalParamOverrideVisitor();
         orig.accept(visitor);
 
-        List<IllegalParamOverrideProblem> problems = new ArrayList<IllegalParamOverrideProblem>();
-        for (Map.Entry<PsiMethod,Collection<ViolatedParameter>> pair
-                : visitor.getProblems().entrySet()) {
-            problems.add(new IllegalParamOverrideProblem(pair.getKey(), pair.getValue()));
+        Map<PsiAnnotation,List<PsiMethod>> violatedSupers
+                = new HashMap<PsiAnnotation, List<PsiMethod>>();
+
+        List<IllegalParamOverrideProblem> problems
+                = new ArrayList<IllegalParamOverrideProblem>();
+        for (Collection<ViolatedParameter> vparams : visitor.getProblems().values()) {
+            for (ViolatedParameter vparam : vparams) {
+                PsiParameter param = vparam.getParameter();
+                List<PsiMethod> list = violatedSupers.get(vparam.getAnnotation());
+                if (list == null) {
+                    list = new ArrayList<PsiMethod>();
+                    violatedSupers.put(vparam.getAnnotation(), list);
+                }
+                list.add(vparam.getSuperMethod());
+            }
+        }
+
+        for (Map.Entry<PsiAnnotation,List<PsiMethod>> entry : violatedSupers.entrySet()) {
+            problems.add(new IllegalParamOverrideProblem(entry.getKey(), entry.getValue()));
         }
 
         return problems;
@@ -72,7 +88,7 @@ public class IllegalParamOverrideFinder implements ProblemFinder<IllegalParamOve
         public void visitMethod(PsiMethod method) {
             super.visitMethod(method);
 
-            List<ViolatedParameter> violatedSuperMethods = getViolatedSuperMethods(method);
+            List<ViolatedParameter> violatedSuperMethods = getViolatedParameters(method);
             if (!violatedSuperMethods.isEmpty()) {
                 problems.put(method, violatedSuperMethods);
             }
@@ -82,21 +98,17 @@ public class IllegalParamOverrideFinder implements ProblemFinder<IllegalParamOve
             return Collections.unmodifiableMap(problems);
         }
 
-        public boolean methodIllegallyOverridesParameter(PsiMethod method) {
-            return !(getViolatedSuperMethods(method).isEmpty());
-        }
-
-        public List<ViolatedParameter> getViolatedSuperMethods(PsiMethod method) {
+        public List<ViolatedParameter> getViolatedParameters(PsiMethod method) {
             PsiMethod[] supers = PsiSuperMethodUtil.findSuperMethods(method);
             if (supers.length == 0) return Collections.emptyList();
             PsiParameter[] methodParams = method.getParameterList().getParameters();
             if (methodParams.length == 0) return Collections.emptyList();
 
-            boolean[] nonnull = new boolean[methodParams.length];
+            PsiAnnotation[] annos = new PsiAnnotation[methodParams.length];
             boolean anyNonnullParams = false;
             for (int i = 0; i < methodParams.length; i++) {
-                nonnull[i] = NullyTools.hasNonNullAnnotation(methodParams[i]);
-                anyNonnullParams |= nonnull[i];
+                annos[i] = NullyTools.getNonnullAnnotation(methodParams[i]);
+                if (annos[i] != null) anyNonnullParams = true;
             }
             if (!anyNonnullParams) return Collections.emptyList();
 
@@ -105,9 +117,9 @@ public class IllegalParamOverrideFinder implements ProblemFinder<IllegalParamOve
                 PsiParameter[] superParams = superMethod.getParameterList().getParameters();
                 for (int i = 0; i < superParams.length; i++) {
                     PsiParameter superParam = superParams[i];
-                    if (nonnull[i] && !NullyTools.hasNonNullAnnotation(superParam)) {
-                        badParams.add(new ViolatedParameter(methodParams[i],
-                                superMethod, superParam));
+                    if (annos[i] != null && !NullyTools.hasNonNullAnnotation(superParam)) {
+                        badParams.add(new ViolatedParameter(annos[i], superMethod,
+                                methodParams[i]));
                         break;
                     }
                 }

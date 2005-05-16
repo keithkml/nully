@@ -1,6 +1,6 @@
 <!DOCTYPE idea-plugin PUBLIC "Plugin/DTD" "http://plugins.intellij.net/plugin.dtd">
 <idea-plugin>
-  <name>Nully Checker</name>
+  <name>Nully</name>
   <description></description>
   <version>0.1</version>
   <vendor>Keith Lea</vendor>

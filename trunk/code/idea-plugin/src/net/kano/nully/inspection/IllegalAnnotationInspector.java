@@ -36,50 +36,37 @@ package net.kano.nully.inspection;
 import com.intellij.codeInspection.InspectionManager;
 import com.intellij.codeInspection.ProblemDescriptor;
 import static com.intellij.codeInspection.ProblemHighlightType.GENERIC_ERROR_OR_WARNING;
-import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.psi.PsiAnnotation;
-import com.intellij.psi.PsiLocalVariable;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiModifierListOwner;
-import com.intellij.psi.PsiParameter;
 import com.intellij.psi.PsiType;
 import com.intellij.psi.PsiVariable;
+import com.intellij.psi.util.PsiTreeUtil;
 import net.kano.nully.NonNull;
+import net.kano.nully.NullyInstrumented;
 import net.kano.nully.NullyTools;
-import net.kano.nully.analysis.IllegalNonnullFinder;
-import net.kano.nully.analysis.IllegalNonnullProblem;
+import net.kano.nully.analysis.IllegalAnnotationFinder;
+import net.kano.nully.analysis.IllegalAnnotationProblem;
+import net.kano.nully.analysis.NullyInstrumentedProblem;
+import net.kano.nully.analysis.PrimitiveAnnotationProblem;
 
 import java.util.EnumSet;
 import java.util.List;
 
-public class IllegalNonnullInspector 
-        extends ProblemFinderBasedInspector<IllegalNonnullFinder, IllegalNonnullProblem> {
-    private static final Logger LOGGER
-            = Logger.getInstance(IllegalNonnullInspector.class.getName());
-
+public class IllegalAnnotationInspector
+        extends ProblemFinderBasedInspector<IllegalAnnotationFinder,
+                IllegalAnnotationProblem> {
+    
     public String getDisplayName() {
-        return "@" + NonNull.class.getSimpleName() + " used with primitive type";
+        return "Illegal nullness annotation";
     }
 
     public String getShortName() {
-        return "NullyNonNullPrimitive";
+        return "NullyIllegalAnnotation";
     }
 
-    private static String getVariableTypeString(PsiVariable psiVariable) {
-        String typeStr;
-        if (psiVariable instanceof PsiParameter) {
-            typeStr = "parameter";
-        } else if (psiVariable instanceof PsiLocalVariable) {
-            typeStr = "variable";
-        } else {
-            typeStr = "variable";
-            LOGGER.error("PsiVariable was " + psiVariable.getClass().getName());
-        }
-        return typeStr;
-    }
-
-    protected IllegalNonnullFinder getFinderInstance() {
-        return new IllegalNonnullFinder();
+    protected IllegalAnnotationFinder getFinderInstance() {
+        return new IllegalAnnotationFinder();
     }
 
     protected EnumSet<InspectionType> getInspectionTypes() {
@@ -87,33 +74,41 @@ public class IllegalNonnullInspector
     }
 
     protected void addProblems(InspectionManager manager,
-            List<ProblemDescriptor> problems, IllegalNonnullProblem problem) {
-        PsiModifierListOwner element = problem.getElement();
-        PsiAnnotation anno = NullyTools.getNonnullAnnotation(element);
+            List<ProblemDescriptor> problems, IllegalAnnotationProblem problem) {
+        PsiAnnotation anno = problem.getElement();
+        PsiModifierListOwner owner = PsiTreeUtil.getParentOfType(anno,
+                PsiModifierListOwner.class);
+
+        String annoName = anno.getNameReferenceElement().getQualifiedName();
         String desc;
-        if (element instanceof PsiVariable) {
-            PsiVariable psiVariable = (PsiVariable) element;
+        if (problem instanceof PrimitiveAnnotationProblem) {
+            if (owner instanceof PsiVariable) {
+                PsiVariable psiVariable = (PsiVariable) owner;
 
-            String typeStr = getVariableTypeString(psiVariable);
+                String typeStr = NullyTools.getVariableTypeString(psiVariable);
 
-            PsiType type = psiVariable.getType();
-            desc = "@" + NonNull.class.getSimpleName() + " does not apply "
-                    + "to " + type.getPresentableText() + " " + typeStr;
+                PsiType type = psiVariable.getType();
+                desc = "@" + annoName + " cannot be used with "
+                        + type.getPresentableText() + " " + typeStr;
 
-        } else if (element instanceof PsiMethod) {
-            PsiMethod method = (PsiMethod) element;
-            desc = "@" + NonNull.class.getSimpleName() + " does not apply "
-                    + "to " + method.getReturnType().getPresentableText()
-                    + " return value";
+            } else if (owner instanceof PsiMethod) {
+                PsiMethod method = (PsiMethod) owner;
+                desc = "@" + annoName + " cannot be used for "
+                        + method.getReturnType().getPresentableText()
+                        + " return value";
 
+            } else {
+                throw new IllegalStateException("element was " + owner);
+            }
+        } else if (problem instanceof NullyInstrumentedProblem) {
+            desc = "@" + NullyInstrumented.class.getSimpleName() + " may only be "
+                    + "inserted by Nully";
         } else {
-            LOGGER.error("invalid element " + element);
             return;
         }
+
         problems.add(manager.createProblemDescriptor(anno,
                 desc, new RemoveAnnotationQuickFix(NonNull.class.getName()),
                 GENERIC_ERROR_OR_WARNING));
-
-        //TODO: re-add nullyinstrumented inspector
     }
 }
