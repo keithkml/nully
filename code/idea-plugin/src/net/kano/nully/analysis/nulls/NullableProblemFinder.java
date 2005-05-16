@@ -31,16 +31,36 @@
  *
  */
 
-package net.kano.nully.analysis;
+package net.kano.nully.analysis.nulls;
 
-import com.intellij.psi.PsiModifierListOwner;
+import net.kano.nully.NonNull;
+import net.kano.nully.SootTools;
+import net.kano.nully.analysis.AnalysisContext;
+import net.kano.nully.analysis.ProblemFinder;
+import soot.Body;
+import soot.SootMethod;
+import soot.Unit;
+import soot.ValueBox;
+import soot.jimple.toolkits.annotation.nullcheck.BranchedRefVarsAnalysis;
 
-public class IllegalNonnullProblem extends NullyProblem {
-    public IllegalNonnullProblem(PsiModifierListOwner owner) {
-        super(owner);
+import java.util.Collection;
+
+public class NullableProblemFinder implements ProblemFinder<NullableProblem> {
+    //TODO: implement @Nullable stuff
+    public Collection<NullableProblem> findProblems(AnalysisContext context) {
+        for (SootMethod method : context.getSootMethods()) {
+            tagProblemsForMember(method.retrieveActiveBody());
+        }
     }
 
-    public PsiModifierListOwner getElement() {
-        return (PsiModifierListOwner) super.getElement();
+    private synchronized void tagProblemsForMember(@NonNull Body body) {
+        for (Unit unit : (Collection<Unit>)body.getUnits()) {
+            for (ValueBox valueBox : (Collection<ValueBox>) unit.getUseBoxes()) {
+                if (!SootTools.hasMayBeNullTag(valueBox)) continue;
+
+                BranchedRefVarsAnalysis
+            }
+        }
     }
+
 }

@@ -33,16 +33,14 @@
 
 package net.kano.nully.analysis;
 
-import com.intellij.psi.PsiElement;
+import net.kano.nully.NonNull;
 
-public abstract class NullyProblem {
-    private PsiElement element;
+public abstract class NullyProblem<E> {
+    private E element;
 
-    protected NullyProblem(PsiElement element) {
+    protected NullyProblem(@NonNull E element) {
         this.element = element;
     }
 
-    public PsiElement getElement() {
-        return element;
-    }
+    public @NonNull E getElement() { return element; }
 }

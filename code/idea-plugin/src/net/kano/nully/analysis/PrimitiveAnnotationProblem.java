@@ -31,18 +31,13 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.analysis;
 
-import static java.lang.annotation.ElementType.CONSTRUCTOR;
-import static java.lang.annotation.ElementType.METHOD;
-import static java.lang.annotation.ElementType.PACKAGE;
-import static java.lang.annotation.ElementType.TYPE;
-import java.lang.annotation.Retention;
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
-import java.lang.annotation.Target;
+import com.intellij.psi.PsiAnnotation;
+import net.kano.nully.NonNull;
 
-@Retention(RUNTIME)
-@Target({CONSTRUCTOR, METHOD, TYPE, PACKAGE})
-public @interface SuppressNullChecks {
-    NullCheckLevel[] value() default NullCheckLevel.ALL;
+public class PrimitiveAnnotationProblem extends IllegalAnnotationProblem {
+    public PrimitiveAnnotationProblem(@NonNull PsiAnnotation anno) {
+        super(anno);
+    }
 }

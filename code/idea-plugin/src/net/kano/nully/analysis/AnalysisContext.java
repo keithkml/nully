@@ -38,6 +38,7 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiJavaFile;
 import net.kano.nully.NonNull;
 import net.kano.nully.OffsetsTracker;
+import net.kano.nully.NullCheckLevel;
 import net.kano.nully.analysis.nulls.psipreprocess.PreparerForSoot;
 import net.kano.nully.analysis.nulls.CodeAnalyzer;
 import soot.SootClass;
@@ -46,6 +47,7 @@ import soot.SootMethod;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.EnumSet;
 
 public class AnalysisContext {
     private PsiJavaFile fileOrig;
@@ -55,9 +57,10 @@ public class AnalysisContext {
     private OffsetsTracker tracker;
     private List<String> strippedClassNames = new ArrayList<String>();
     private Key<PsiElement> originalKey = Key.create("NullyOriginal");
-    private Key<PsiElement> copyKey = Key.create("NullyOriginal");
+    private Key<PsiElement> copyKey = Key.create("NullyCopy");
     private PreparerForSoot preparer;
     private CodeAnalyzer analyzer;
+    private EnumSet<NullCheckLevel> checkLevels = EnumSet.noneOf(NullCheckLevel.class);
 
     public OffsetsTracker getTracker() {
         return tracker;
@@ -143,4 +146,19 @@ public class AnalysisContext {
     public CodeAnalyzer getAnalyzer() {
         return analyzer;
     }
+
+
+    public void addCheckLevel(NullCheckLevel checkLevel) {
+        checkLevels.add(checkLevel);
+    }
+
+    public void removeCheckLevel(NullCheckLevel checkLevel) {
+        checkLevels.remove(checkLevel);
+    }
+
+    public boolean shouldCheck(NullCheckLevel level) {
+        return checkLevels.contains(level);
+    }
+
+    public EnumSet<NullCheckLevel> getCheckLevels() { return checkLevels; }
 }

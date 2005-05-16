@@ -41,64 +41,77 @@ import com.intellij.psi.PsiParameter;
 import com.intellij.psi.PsiLocalVariable;
 import com.intellij.psi.PsiType;
 import com.intellij.psi.PsiPrimitiveType;
+import com.intellij.psi.PsiAnnotation;
 import net.kano.nully.NonNull;
 import net.kano.nully.NullyTools;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Collection;
+import java.util.Map;
+import java.util.Set;
+import java.util.HashMap;
+import java.util.HashSet;
 
-public class IllegalNonnullFinder implements ProblemFinder<IllegalNonnullProblem> {
-    @NonNull public Collection<IllegalNonnullProblem> findProblems(
+public class PrimitiveAnnotationFinder implements ProblemFinder<PrimitiveAnnotationProblem> {
+    @NonNull public Collection<PrimitiveAnnotationProblem> findProblems(
             @NonNull AnalysisContext context) {
         PsiJavaFile orig = context.getFileOrig();
 
-        List<IllegalNonnullProblem> problems = new ArrayList<IllegalNonnullProblem>();
+        List<PrimitiveAnnotationProblem> problems = new ArrayList<PrimitiveAnnotationProblem>();
         IllegalNonnullVisitor visitor = new IllegalNonnullVisitor();
         orig.accept(visitor);
-        for (PsiModifierListOwner owner : visitor.getBadElements()) {
-            problems.add(new IllegalNonnullProblem(owner));
+        for (Map.Entry<PsiModifierListOwner,Set<PsiAnnotation>> entry
+                : visitor.getBadElements().entrySet()) {
+            for (PsiAnnotation anno : entry.getValue()) {
+                problems.add(new PrimitiveAnnotationProblem(anno));
+            }
         }
 
         return problems;
     }
 
     private class IllegalNonnullVisitor extends PsiRecursiveElementVisitor {
-        private List<PsiModifierListOwner> badElements
-                = new ArrayList<PsiModifierListOwner>();
+        private Map<PsiModifierListOwner, Set<PsiAnnotation>> badElements
+                = new HashMap<PsiModifierListOwner, Set<PsiAnnotation>>();
 
         public void visitMethod(PsiMethod method) {
             super.visitMethod(method);
 
-            if (!method.isConstructor()
-                    && checkNonNullPrimitive(method, method.getReturnType())) {
-                badElements.add(method);
+            if (!method.isConstructor()) {
+                addIfBad(method, method.getReturnType());
             }
+        }
+
+        private void addIfBad(PsiModifierListOwner owner, PsiType type) {
+            if (!(type instanceof PsiPrimitiveType)) return;
+
+            Set<PsiAnnotation> anno = NullyTools.getNullyAnnotations(owner);
+            if (anno == null) return;
+
+            Set<PsiAnnotation> list = badElements.get(owner);
+            if (list == null) {
+                list = new HashSet<PsiAnnotation>();
+                badElements.put(owner, list);
+            }
+            list.addAll(anno);
         }
 
         public void visitParameter(PsiParameter parameter) {
             super.visitParameter(parameter);
 
-            if (checkNonNullPrimitive(parameter, parameter.getType())) {
-                badElements.add(parameter);
-            }
+            addIfBad(parameter, parameter.getType());
         }
 
         public void visitLocalVariable(PsiLocalVariable variable) {
             super.visitLocalVariable(variable);
 
-            if (checkNonNullPrimitive(variable, variable.getType())) {
-                badElements.add(variable);
-            }
+            addIfBad(variable, variable.getType());
         }
 
-        private boolean checkNonNullPrimitive(PsiModifierListOwner owner, PsiType type) {
-            return type instanceof PsiPrimitiveType && NullyTools.hasNonNullAnnotation(owner);
-        }
 
-        public List<PsiModifierListOwner> getBadElements() {
+        public Map<PsiModifierListOwner,Set<PsiAnnotation>> getBadElements() {
             return badElements;
         }
     }
-
 }

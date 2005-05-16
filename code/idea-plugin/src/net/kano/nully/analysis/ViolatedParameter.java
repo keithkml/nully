@@ -33,30 +33,28 @@
 
 package net.kano.nully.analysis;
 
-import com.intellij.psi.PsiParameter;
+import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.PsiMethod;
+import com.intellij.psi.PsiParameter;
+import net.kano.nully.NonNull;
 
 public final class ViolatedParameter {
-    private PsiParameter subParam;
+    //TOLATER: detect fields which can never be assigned null, suggest @NonNull for their getters
+    private PsiAnnotation annotation;
     private PsiMethod superMethod;
-    private PsiParameter superParam;
+    private PsiParameter param;
+    private PsiParameter parameter;
 
-    public ViolatedParameter(PsiParameter subParam, PsiMethod superMethod,
-            PsiParameter superParam) {
-        this.subParam = subParam;
+    public ViolatedParameter(@NonNull PsiAnnotation anno,
+            @NonNull PsiMethod superMethod, @NonNull PsiParameter param) {
+        this.annotation = anno;
         this.superMethod = superMethod;
-        this.superParam = superParam;
+        this.param = param;
     }
 
-    public PsiParameter getSubParam() {
-        return subParam;
-    }
+    public @NonNull PsiAnnotation getAnnotation() { return annotation; }
 
-    public PsiMethod getSuperMethod() {
-        return superMethod;
-    }
+    public @NonNull PsiMethod getSuperMethod() { return superMethod; }
 
-    public PsiParameter getSuperParam() {
-        return superParam;
-    }
+    public @NonNull PsiParameter getParameter() { return parameter; }
 }

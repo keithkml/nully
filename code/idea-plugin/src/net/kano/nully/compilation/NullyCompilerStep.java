@@ -33,8 +33,6 @@
 
 package net.kano.nully.compilation;
 
-import static net.kano.nully.OverrideType.OVERRIDES;
-import static net.kano.nully.OverrideType.IMPLEMENTS;
 import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.compiler.CompileContext;
@@ -51,49 +49,62 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiExpressionList;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiJavaToken;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiMethodCallExpression;
+import com.intellij.psi.PsiModifierListOwner;
+import com.intellij.psi.PsiParameter;
+import com.intellij.psi.PsiType;
 import com.intellij.psi.PsiVariable;
+import com.intellij.psi.PsiClass;
+import com.intellij.psi.PsiElementFactory;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
+import net.kano.nully.ImportantSuperMethodInfo;
 import net.kano.nully.NonNull;
+import net.kano.nully.NullyInstrumented;
 import net.kano.nully.NullyTools;
 import net.kano.nully.OverrideType;
-import net.kano.nully.ImportantSuperMethodInfo;
+import net.kano.nully.NullCheckLevel;
+import static net.kano.nully.OverrideType.IMPLEMENTS;
+import static net.kano.nully.OverrideType.OVERRIDES;
 import net.kano.nully.analysis.AnalysisContext;
-import net.kano.nully.analysis.IllegalNonnullFinder;
-import net.kano.nully.analysis.ProblemFinder;
+import net.kano.nully.analysis.IllegalAnnotationProblem;
 import net.kano.nully.analysis.IllegalParamOverrideFinder;
+import net.kano.nully.analysis.IllegalParamOverrideProblem;
 import net.kano.nully.analysis.IllegalReturnOverrideFinder;
-import net.kano.nully.analysis.NullyProblem;
 import net.kano.nully.analysis.IllegalReturnOverrideProblem;
 import net.kano.nully.analysis.NullyInstrumentedFinder;
+import net.kano.nully.analysis.NullyInstrumentedProblem;
+import net.kano.nully.analysis.NullyProblem;
+import net.kano.nully.analysis.PrimitiveAnnotationFinder;
+import net.kano.nully.analysis.ProblemFinder;
+import net.kano.nully.analysis.PrimitiveAnnotationProblem;
 import net.kano.nully.analysis.nulls.CodeAnalyzer;
-import net.kano.nully.analysis.nulls.NullValueProblemFinder;
 import net.kano.nully.analysis.nulls.NullProblemType;
 import static net.kano.nully.analysis.nulls.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
 import static net.kano.nully.analysis.nulls.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
 import static net.kano.nully.analysis.nulls.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
 import net.kano.nully.analysis.nulls.NullValueProblem;
+import net.kano.nully.analysis.nulls.NullValueProblemFinder;
 import net.kano.nully.analysis.nulls.psipreprocess.PreparerForSoot;
 
 import javax.swing.SwingUtilities;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class NullyCompilerStep implements JavaSourceTransformingCompiler {
-    //TODO: fix compiler - implement new inspections
-    //TODO: insert @NullyInstrumented annotation
     private static final Logger LOGGER
             = Logger.getInstance(NullyCompilerStep.class.getName());
 
@@ -102,10 +113,10 @@ public class NullyCompilerStep implements JavaSourceTransformingCompiler {
 
     private FileDocumentManager docmgr = FileDocumentManager.getInstance();
     private PsiDocumentManager psiDocMgr;
-    private static final List<Class<? extends ProblemFinder<?>>> AUXILLARY_FINDER_CLASSES
-            = Arrays.asList(
+    private static final List<Class<? extends ProblemFinder<? extends NullyProblem<? extends PsiElement>>>> AUXILLARY_FINDER_CLASSES
+            = Arrays.<Class<? extends ProblemFinder<? extends NullyProblem<? extends PsiElement>>>>asList(
             NullyInstrumentedFinder.class,
-            IllegalNonnullFinder.class,
+            PrimitiveAnnotationFinder.class,
             IllegalParamOverrideFinder.class,
             IllegalReturnOverrideFinder.class);
 
@@ -172,6 +183,8 @@ public class NullyCompilerStep implements JavaSourceTransformingCompiler {
 //        if (!checker.shouldProcess()) return false;
 
         AnalysisContext ctx = new AnalysisContext();
+        ctx.addCheckLevel(NullCheckLevel.COMPILER);
+        ctx.addCheckLevel(NullCheckLevel.RUNTIME);
 
         PsiJavaFile copy = NullyTools.getMarkedCopy(jfile,
                 ctx.getOriginalKey(), ctx.getCopyKey());
@@ -183,7 +196,8 @@ public class NullyCompilerStep implements JavaSourceTransformingCompiler {
         CodeAnalyzer analyzer = new CodeAnalyzer();
         analyzer.analyze(ctx);
 
-        List<NullyProblem> problems = new ArrayList<NullyProblem>(findKnownProblems(ctx));
+        List<NullyProblem<? extends PsiElement>> problems
+                = new ArrayList<NullyProblem<? extends PsiElement>>(findKnownProblems(ctx));
         NullValueProblemFinder finder = new NullValueProblemFinder();
         Collection<NullValueProblem> nvProblems = finder.findProblems(ctx);
         problems.addAll(nvProblems);
@@ -195,6 +209,18 @@ public class NullyCompilerStep implements JavaSourceTransformingCompiler {
         boolean changed = RuntimeCheckInserter.insertRuntimeChecks(copy, nvProblems);
 
         if (changed) {
+            // add NullyInstrumented annotation
+            for (PsiClass cls : copy.getClasses()) {
+                PsiAnnotation oldAnno = cls.getModifierList()
+                        .findAnnotation(NullyInstrumented.class.getName());
+                if (oldAnno != null) continue;
+                PsiElementFactory factory = cls.getManager().getElementFactory();
+                PsiAnnotation anno = factory.createAnnotationFromText("@"
+                        + NullyInstrumented.class.getName(), cls);
+                cls.getModifierList().add(anno);
+            }
+
+            // make copy
             String text = copy.getText();
             System.out.println("New:");
             System.out.println(text);
@@ -205,10 +231,12 @@ public class NullyCompilerStep implements JavaSourceTransformingCompiler {
         }
     }
 
-    private static List<NullyProblem> findKnownProblems(AnalysisContext ctx) {
-        List<NullyProblem> problems = new ArrayList<NullyProblem>();
-        for (Class<? extends ProblemFinder<?>> aClass : AUXILLARY_FINDER_CLASSES) {
-            ProblemFinder<?> finder;
+    private static List<NullyProblem<? extends PsiElement>> findKnownProblems(
+            @NonNull AnalysisContext ctx) {
+        List<NullyProblem<? extends PsiElement>> problems
+                = new ArrayList<NullyProblem<? extends PsiElement>>();
+        for (Class<? extends ProblemFinder<? extends NullyProblem<? extends PsiElement>>> aClass : AUXILLARY_FINDER_CLASSES) {
+            ProblemFinder<? extends NullyProblem<? extends PsiElement>> finder;
             try {
                 finder = aClass.newInstance();
             } catch (Exception e) {
@@ -221,22 +249,26 @@ public class NullyCompilerStep implements JavaSourceTransformingCompiler {
     }
 
     private static void addCompilerWarnings(@NonNull CompileContext context,
-            @NonNull PsiJavaFile jfile, @NonNull List<NullyProblem> problems) {
-        for (NullyProblem problem : problems) {
-            addCompilerWarning(context, jfile, problem);
+            @NonNull PsiJavaFile jfile, @NonNull List<NullyProblem<? extends PsiElement>> problems) {
+        for (NullyProblem<? extends PsiElement> problem : problems) {
+            PsiElement element = problem.getElement();
+            if (NullyTools.shouldCheckNulls(element, NullCheckLevel.COMPILER)) {
+                addCompilerWarning(context, jfile, problem);
+            }
         }
     }
 
     private static void addCompilerWarning(@NonNull CompileContext context,
-            @NonNull PsiJavaFile orig, @NonNull NullyProblem problem) {
+            @NonNull PsiJavaFile orig, @NonNull NullyProblem<? extends PsiElement> problem) {
         String desc;
-        if (problem instanceof NullValueProblem) {
-            NullValueProblem nvProblem = (NullValueProblem) problem;
+        NullyProblem hack = problem;
+        if (hack instanceof NullValueProblem) {
+            NullValueProblem nvProblem = (NullValueProblem) hack;
             desc = getWarningForNullProblem(nvProblem);
 
-        } else if (problem instanceof IllegalReturnOverrideProblem) {
+        } else if (hack instanceof IllegalReturnOverrideProblem) {
             IllegalReturnOverrideProblem overrideProblem
-                    = (IllegalReturnOverrideProblem) problem;
+                    = (IllegalReturnOverrideProblem) hack;
 
             PsiMethod method = overrideProblem.getElement();
             Collection<PsiMethod> badSupers = overrideProblem.getBadSupers();
@@ -250,8 +282,52 @@ public class NullyCompilerStep implements JavaSourceTransformingCompiler {
                     + word + " " + NullyTools.getQualifiedMemberName(overridden)
                     + " without matching @" + NonNull.class.getSimpleName()
                     + " declaration";
+
+        } else if (hack instanceof IllegalParamOverrideProblem) {
+            IllegalParamOverrideProblem pop = (IllegalParamOverrideProblem) hack;
+            PsiAnnotation anno = pop.getElement();
+            PsiParameter param = PsiTreeUtil.getParentOfType(anno, PsiParameter.class);
+            PsiMethod method = PsiTreeUtil.getParentOfType(param, PsiMethod.class);
+            String superClassName = NullyTools.getImportantSuperMethod(method,
+                    pop.getSuperMethods()).getOverridden().getContainingClass().getName();
+            desc = "Parameter " + param.getName() + " of method "
+                    + method.getName() + " cannot be declared @"
+                    + NonNull.class.getSimpleName() + "; corresponding super "
+                    + "method in " + superClassName + " parameter is not marked @"
+                    + NonNull.class.getSimpleName();
+
+        } else if (hack instanceof PrimitiveAnnotationProblem) {
+            IllegalAnnotationProblem inp = (IllegalAnnotationProblem) hack;
+            PsiAnnotation anno = inp.getElement();
+            PsiModifierListOwner owner = PsiTreeUtil.getParentOfType(anno,
+                    PsiModifierListOwner.class, false);
+
+            String annoName = getAnnotationName(anno);
+            if (owner instanceof PsiVariable) {
+                PsiVariable psiVariable = (PsiVariable) owner;
+
+                String typeStr = NullyTools.getVariableTypeString(psiVariable);
+
+                PsiType type = psiVariable.getType();
+                desc = "@" + annoName + " cannot be used with "
+                        + type.getPresentableText() + " " + typeStr + " "
+                        + psiVariable.getName();
+
+            } else if (owner instanceof PsiMethod) {
+                PsiMethod method = (PsiMethod) owner;
+                desc = "@" + annoName + " cannot be used for method "
+                        + method.getName() + "'s "
+                        + method.getReturnType().getPresentableText()
+                        + " return value";
+
+            } else {
+                throw new IllegalStateException("element was " + owner);
+            }
+
+        } else if (hack instanceof NullyInstrumentedProblem) {
+            desc = "@" + NullyInstrumented.class.getSimpleName() + " may only "
+                    + "be inserted by Nully";
         } else {
-            //TODO: add warnings for the rest of the problem types for compiler
             return;
         }
 
@@ -261,6 +337,11 @@ public class NullyCompilerStep implements JavaSourceTransformingCompiler {
         int line = StringUtil.offsetToLineNumber(text, off) + 1;
         int col = off - StringUtil.lineColToOffset(text, line - 1, 0) + 1;
         context.addMessage(WARNING, desc, url, line, col);
+    }
+
+    private static String getAnnotationName(PsiAnnotation anno) {
+        String annoName = anno.getNameReferenceElement().getReferenceName();
+        return annoName;
     }
 
     private static String getWordForType(OverrideType overType) {
@@ -323,7 +404,9 @@ public class NullyCompilerStep implements JavaSourceTransformingCompiler {
             @NonNull PsiElement desiredArg) {
         int num = -1;
         int i = 1;
-        for (PsiElement arg : call.getArgumentList().getExpressions()) {
+        PsiExpressionList args = call.getArgumentList();
+        if (args == null) return -1;
+        for (PsiElement arg : args.getExpressions()) {
             if (arg instanceof PsiJavaToken) continue;
             if (PsiTreeUtil.isAncestor(arg, desiredArg, false)) {
                 num = i;
@@ -356,7 +439,7 @@ public class NullyCompilerStep implements JavaSourceTransformingCompiler {
                 + " declarations in Java code";
     }
 
-    public boolean validateConfiguration(@NonNull CompileScope scope) {
+    public boolean validateConfiguration(CompileScope scope) {
         return true;
     }
 }

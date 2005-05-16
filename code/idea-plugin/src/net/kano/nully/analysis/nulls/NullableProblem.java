@@ -31,18 +31,13 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.analysis.nulls;
 
-import static java.lang.annotation.ElementType.CONSTRUCTOR;
-import static java.lang.annotation.ElementType.METHOD;
-import static java.lang.annotation.ElementType.PACKAGE;
-import static java.lang.annotation.ElementType.TYPE;
-import java.lang.annotation.Retention;
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
-import java.lang.annotation.Target;
+import net.kano.nully.analysis.NullyProblem;
+import com.intellij.psi.PsiExpression;
 
-@Retention(RUNTIME)
-@Target({CONSTRUCTOR, METHOD, TYPE, PACKAGE})
-public @interface SuppressNullChecks {
-    NullCheckLevel[] value() default NullCheckLevel.ALL;
+public class NullableProblem extends NullyProblem<PsiExpression> {
+    protected NullableProblem(PsiExpression element) {
+        super(element);
+    }
 }

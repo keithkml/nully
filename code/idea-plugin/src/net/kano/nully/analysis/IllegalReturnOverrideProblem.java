@@ -34,19 +34,21 @@
 package net.kano.nully.analysis;
 
 import com.intellij.psi.PsiMethod;
+import net.kano.nully.NonNull;
 
 import java.util.Collection;
 
-public class IllegalReturnOverrideProblem extends IllegalOverrideProblem {
+public class IllegalReturnOverrideProblem extends IllegalOverrideProblem<PsiMethod> {
     private Collection<PsiMethod> badSupers;
 
-    public IllegalReturnOverrideProblem(PsiMethod method, Collection<PsiMethod> badSupers) {
+    public IllegalReturnOverrideProblem(@NonNull PsiMethod method,
+            @NonNull Collection<PsiMethod> badSupers) {
         super(method);
 
         this.badSupers = badSupers;
     }
 
-    public Collection<PsiMethod> getBadSupers() {
+    public @NonNull Collection<PsiMethod> getBadSupers() {
         return badSupers;
     }
 }

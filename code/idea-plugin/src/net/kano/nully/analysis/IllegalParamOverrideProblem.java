@@ -33,21 +33,20 @@
 
 package net.kano.nully.analysis;
 
+import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.PsiMethod;
+import net.kano.nully.NonNull;
 
 import java.util.Collection;
-import java.util.Collections;
 
-public class IllegalParamOverrideProblem extends IllegalOverrideProblem {
-    private Collection<ViolatedParameter> violators;
+public class IllegalParamOverrideProblem extends IllegalOverrideProblem<PsiAnnotation> {
+    private Collection<PsiMethod> superMethods;
 
-    public IllegalParamOverrideProblem(PsiMethod method,
-            Collection<ViolatedParameter> violators) {
-        super(method);
-        this.violators = violators;
+    public IllegalParamOverrideProblem(@NonNull PsiAnnotation anno,
+            @NonNull Collection<PsiMethod> superMethods) {
+        super(anno);
+        this.superMethods = superMethods;
     }
 
-    public Collection<ViolatedParameter> getViolators() {
-        return Collections.unmodifiableCollection(violators);
-    }
+    public @NonNull Collection<PsiMethod> getSuperMethods() { return superMethods; }
 }

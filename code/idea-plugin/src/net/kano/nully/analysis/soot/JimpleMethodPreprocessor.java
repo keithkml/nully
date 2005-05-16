@@ -49,6 +49,7 @@ import net.kano.nully.NullParameterException;
 import net.kano.nully.NullyTools;
 import net.kano.nully.OffsetsTracker;
 import net.kano.nully.UnexpectedNullValueException;
+import net.kano.nully.SootTools;
 import net.kano.nully.analysis.AnalysisContext;
 import soot.Body;
 import soot.IntType;
@@ -257,7 +258,7 @@ public class JimpleMethodPreprocessor {
             @NonNull DefinitionStmt assignStmt) {
         // find the source position of the assigned variable
         ValueBox varBox = assignStmt.getLeftOpBox();
-        SourceLnPosTag varSrcTag = NullyTools.getSourceTag(varBox);
+        SourceLnPosTag varSrcTag = SootTools.getSourceTag(varBox);
         if (varSrcTag == null) return false;
 
         // find the PSI variable
@@ -315,7 +316,7 @@ public class JimpleMethodPreprocessor {
             // to create a temporary local which will hold the value while it's
             // being checked for nullness, so a null value is never present in
             // the actual variable being assigned.
-            Local newLocal = jimple.newLocal(NullyTools.getUnusedLocalName(locals),
+            Local newLocal = jimple.newLocal(SootTools.getUnusedLocalName(locals),
                             checkedStmt.getLeftOp().getType());
             locals.add(newLocal);
 
@@ -324,7 +325,6 @@ public class JimpleMethodPreprocessor {
             // copy tags over
             copyStmt.getRightOpBox().addAllTagsOf(checkedStmt.getRightOpBox());
             copyStmt.addTag(new FixedNullAssignmentTag());
-            // TODO: why did I add call to addAllTagsOf(checkedStmt)??
 //            copyStmt.addAllTagsOf(checkedStmt);
 
             // the value holder is now the new local
@@ -342,7 +342,7 @@ public class JimpleMethodPreprocessor {
                         checkedStmt);
 
         // create the local to hold the exception to be thrown
-        Local exceptionLocal = jimple.newLocal(NullyTools.getUnusedLocalName(locals),
+        Local exceptionLocal = jimple.newLocal(SootTools.getUnusedLocalName(locals),
                         RefType.v(RuntimeException.class.getName()));
         locals.add(exceptionLocal);
 
@@ -494,8 +494,8 @@ public class JimpleMethodPreprocessor {
      */
     private static SourceLnPosTag findAssignedValueTag(@NonNull DefinitionStmt assignStmt) {
         // figure out which source tag is the right one to read
-        SourceLnPosTag stmtSrcTag = NullyTools.getSourceTag(assignStmt);
-        SourceLnPosTag valueSrcTag = NullyTools.getSourceTag(assignStmt.getRightOpBox());
+        SourceLnPosTag stmtSrcTag = SootTools.getSourceTag(assignStmt);
+        SourceLnPosTag valueSrcTag = SootTools.getSourceTag(assignStmt.getRightOpBox());
 
         SourceLnPosTag actualTag;
         if (valueSrcTag != null) {

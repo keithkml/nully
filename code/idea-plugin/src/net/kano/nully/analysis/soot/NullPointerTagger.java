@@ -51,7 +51,6 @@ import java.util.Map;
  * Tags possible null references with a {@link MayBeNullTag}.
  */
 public class NullPointerTagger extends BodyTransformer {
-    //TODO: re-implement using nullpointerchecker -- why??
 
 	protected void internalTransform (Body b, String phaseName, Map options) {
 		BranchedRefVarsAnalysis analysis = new BranchedRefVarsAnalysis (

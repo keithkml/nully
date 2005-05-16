@@ -33,9 +33,20 @@
 
 package net.kano.nully.analysis.nulls.psipreprocess;
 
+import com.intellij.degenerator.CastingVisitor;
+import com.intellij.degenerator.ModifyingVisitor;
+import com.intellij.degenerator.TypeParametersRemovingVisitor;
+import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiMember;
+import com.intellij.psi.PsiRecursiveElementVisitor;
+import com.intellij.psi.PsiStatement;
+import com.intellij.psi.PsiErrorElement;
+import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.util.IncorrectOperationException;
 import net.kano.nully.NonNull;
 import net.kano.nully.NullyTools;
 import net.kano.nully.analysis.AnalysisContext;
@@ -48,7 +59,9 @@ import java.util.List;
  * Provides methods which prepare Java code to be passed to Soot's parser.
  */
 public class PreparerForSoot {
-    //TODO: strip erroneous lines
+    private static final Logger LOGGER
+            = Logger.getInstance(PreparerForSoot.class.getName());
+
     private final AnalysisContext context;
 
     public PreparerForSoot(@NonNull AnalysisContext context) {
@@ -57,13 +70,60 @@ public class PreparerForSoot {
 
     public void prepareForFileAnalysis(@NonNull PsiJavaFile jfile) {
         makeMarkedCopy(jfile);
+        stripErrors(jfile);
         stripJava5Code(context.getCopiedElement(jfile));
+    }
+
+    private void stripErrors(@NonNull PsiJavaFile jfile) {
+        jfile.accept(new PsiRecursiveElementVisitor() {
+            public void visitStatement(PsiStatement statement) {
+                super.visitStatement(statement);
+
+                if (PsiTreeUtil.getChildOfType(statement, PsiErrorElement.class) != null) {
+                    try {
+                        statement.delete();
+                    } catch (IncorrectOperationException e) {
+                        LOGGER.error(e);
+                    }
+                }
+            }
+//            public void visitExpression(PsiExpression expression) {
+//                super.visitExpression(expression);
+//
+//                if (PsiTreeUtil.getChildOfType(expression, PsiErrorElement.class) != null) {
+//                    PsiElementFactory factory = expression.getManager().getElementFactory();
+//                    String def = NullyTools.getDefaultValue(ExpectedTypeUtils.findExpectedType(expression));
+//                    try {
+//                        expression.replace(factory.createExpressionFromText(def, expression));
+//                    } catch (IncorrectOperationException e) {
+//                        LOGGER.error(e);
+//                    }
+//                }
+//            }
+//
+//            public void visitReferenceElement(PsiJavaCodeReferenceElement reference) {
+//                super.visitReferenceElement(reference);
+//
+//                if (reference.resolve() == null) {
+//                    PsiExpression exp = PsiTreeUtil.getParentOfType(reference,
+//                            PsiExpression.class, false);
+//                    PsiElementFactory factory = reference.getManager().getElementFactory();
+//                    String def = NullyTools.getDefaultValue(ExpectedTypeUtils.findExpectedType(exp));
+//                    try {
+//                        reference.replace(factory.createExpressionFromText(def));
+//                    } catch (IncorrectOperationException e) {
+//                        LOGGER.error(e);
+//                    }
+//                }
+//            }
+        });
     }
 
     public void prepareForElementsAnalysis(@NonNull PsiJavaFile jfile,
             @NonNull Collection<PsiMember> toInspect) {
         makeMarkedCopy(jfile);
         strip(toInspect);
+        stripErrors(jfile);
         stripJava5Code(context.getCopiedElement(jfile));
     }
 
@@ -104,14 +164,54 @@ public class PreparerForSoot {
      * Strips Java 5.0 code from the given file according to the specification
      * of {@link Java5CodeStripVisitor};
      *
-     * @param el the element to transform
+     * @param file the element to transform
      */
-    public void stripJava5Code(@NonNull PsiElement el) {
-        el.accept(new Java5CodeStripVisitor());
-        el.accept(new Java5CodeStripVisitorSecondPass());
-        System.out.println("test");
+    public void stripJava5Code(@NonNull PsiJavaFile file) {
+//        for (PsiClass cls : file.getClasses()) {
+//            for (PsiMethod method : cls.getMethods()) {
+//                DataFlowRunner r = new DataFlowRunner();
+//                boolean b = r.analyzeMethod(method.getBody());
+//                List<Instruction> instructions = new ArrayList<Instruction>();
+//                for (int i = 0;; i++) {
+//                    try {
+//                        instructions.add(r.getInstruction(i));
+//                    } catch (ArrayIndexOutOfBoundsException e) {
+//                        break;
+//                    }
+//                }
+//                for (Instruction instruction : instructions) {
+//                    if (instruction instanceof PushInstruction) {
+//                        PushInstruction pi = (PushInstruction) instruction;
+//                        DfaMemoryState st = new DfaMemoryStateImpl(r.getFactory());
+//                        st.
+//                        pi.apply(r, st);
+//                        DfaValue value = st.pop();
+//                        System.out.println("value");
+//                    }
+//                }
+//                System.out.println("b");
+//            }
+//        }
+
+        file.accept(new Java5CodeStripVisitor());
+        file.accept(new Java5CodeStripVisitorSecondPass());
+//        PsiJavaFile copy = degenerate(file);
+//        System.out.println("degenerated");
 //        Pair<?,?> result = DegeneratorUtil.degenerate(el);
 //        System.out.println("result");
+    }
+
+    private PsiJavaFile degenerate(PsiFile file) {
+        Project project = file.getProject();
+        CastingVisitor castingvisitor = new CastingVisitor(project, new ArrayList());
+        TypeParametersRemovingVisitor typeparametersremovingvisitor
+                = new TypeParametersRemovingVisitor(project);
+        file.accept(castingvisitor);
+        file.accept(typeparametersremovingvisitor);
+        PsiJavaFile copy = (PsiJavaFile) file.copy();
+        ModifyingVisitor modifyingvisitor = new ModifyingVisitor();
+        copy.accept(modifyingvisitor);
+        return copy;
     }
 
     /**

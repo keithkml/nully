@@ -33,14 +33,10 @@
 
 package net.kano.nully.analysis;
 
-import com.intellij.psi.PsiMethod;
+import net.kano.nully.NonNull;
 
-public abstract class IllegalOverrideProblem extends NullyProblem {
-    protected IllegalOverrideProblem(PsiMethod element) {
-        super(element);
-    }
-
-    public PsiMethod getElement() {
-        return (PsiMethod) super.getElement();
+public abstract class IllegalOverrideProblem<E> extends NullyProblem<E> {
+    protected IllegalOverrideProblem(@NonNull E method) {
+        super(method);
     }
 }
