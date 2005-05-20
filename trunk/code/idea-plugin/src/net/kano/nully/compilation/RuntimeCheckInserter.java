@@ -31,22 +31,22 @@
  *
  */
 
-package net.kano.nully.compilation;
+package net.kano.nully.plugin.compilation;
 
-import static net.kano.nully.analysis.nulls.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
-import static net.kano.nully.analysis.nulls.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
-import static net.kano.nully.analysis.nulls.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
+import static net.kano.nully.plugin.analysis.nulls.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
+import static net.kano.nully.plugin.analysis.nulls.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
+import static net.kano.nully.plugin.analysis.nulls.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiElementFactory;
 import com.intellij.psi.PsiExpression;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.util.IncorrectOperationException;
-import net.kano.nully.NonNullTools;
-import net.kano.nully.NullyTools;
-import net.kano.nully.NonNull;
-import net.kano.nully.NullCheckLevel;
-import net.kano.nully.analysis.nulls.NullProblemType;
-import net.kano.nully.analysis.nulls.NullValueProblem;
+import net.kano.nully.annotations.NonNullTools;
+import net.kano.nully.plugin.NullyTools;
+import net.kano.nully.annotations.NonNull;
+import net.kano.nully.annotations.NullCheckLevel;
+import net.kano.nully.plugin.analysis.nulls.NullProblemType;
+import net.kano.nully.plugin.analysis.nulls.NullValueProblem;
 
 import java.util.Collection;
 

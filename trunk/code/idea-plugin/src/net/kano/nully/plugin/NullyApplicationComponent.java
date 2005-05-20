@@ -31,20 +31,37 @@
  *
  */
 
-package net.kano.nully.plugin.analysis.nulls;
+package net.kano.nully.plugin;
 
-import com.intellij.psi.PsiElement;
-import net.kano.nully.annotations.NonNull;
+import com.intellij.codeInspection.InspectionToolProvider;
+import com.intellij.openapi.components.ApplicationComponent;
+import net.kano.nully.plugin.inspection.IllegalAnnotationInspector;
+import net.kano.nully.plugin.inspection.IllegalOverrideInspector;
+import net.kano.nully.plugin.inspection.NullProblemInspector;
 
-public class NullValueProblem extends NullProblem {
-    //TOLATER: quick fix for nonnull parameter value in nonnull context should be to nonnull the param
-    private final NullProblemType type;
+public class NullyApplicationComponent implements ApplicationComponent, InspectionToolProvider {
+    //TOLATER: detect when null check is needed for non-@NonNull parameter
+    //TOLATER: detect when method only returns non-null
 
-    public NullValueProblem(@NonNull PsiElement element,
-            @NonNull NullProblemType type) {
-        super(element);
-        this.type = type;
+    public String getComponentName() {
+        return "Nully";
     }
 
-    public @NonNull NullProblemType getType() { return type; }
+    public void initComponent() {
+//        G.v().out = new PrintStream(new OutputStream() {
+//            public void write(int i) throws IOException {
+//            }
+//        });
+    }
+
+    public void disposeComponent() {
+    }
+
+    public Class[] getInspectionClasses() {
+        return new Class[] {
+            NullProblemInspector.class,
+            IllegalOverrideInspector.class,
+            IllegalAnnotationInspector.class,
+        };
+    }
 }

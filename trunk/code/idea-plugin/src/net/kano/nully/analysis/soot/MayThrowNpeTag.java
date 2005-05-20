@@ -31,20 +31,31 @@
  *
  */
 
-package net.kano.nully.plugin.analysis.nulls;
+package net.kano.nully.plugin.analysis.nulls.soot;
 
-import com.intellij.psi.PsiElement;
-import net.kano.nully.annotations.NonNull;
+import soot.tagkit.Tag;
+import soot.tagkit.AttributeValueException;
 
-public class NullValueProblem extends NullProblem {
-    //TOLATER: quick fix for nonnull parameter value in nonnull context should be to nonnull the param
-    private final NullProblemType type;
+/**
+ * Created by IntelliJ IDEA. User: keithkml Date: May 19, 2005 Time: 6:20:07 PM
+ * To change this template use File | Settings | File Templates.
+ */
+public class MayThrowNpeTag implements Tag {
+    private boolean definitelyNull;
 
-    public NullValueProblem(@NonNull PsiElement element,
-            @NonNull NullProblemType type) {
-        super(element);
-        this.type = type;
+    public MayThrowNpeTag(boolean definitelyNull) {
+        this.definitelyNull = definitelyNull;
     }
 
-    public @NonNull NullProblemType getType() { return type; }
+    public boolean isDefinitelyNull() {
+        return definitelyNull;
+    }
+
+    public String getName() {
+        return "MayThrowNpeTag";
+    }
+
+    public byte[] getValue() throws AttributeValueException {
+        throw new AttributeValueException();
+    }
 }

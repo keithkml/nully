@@ -31,9 +31,9 @@
  *
  */
 
-package net.kano.nully.analysis.nulls.soot;
+package net.kano.nully.plugin.analysis.nulls.soot;
 
-import net.kano.nully.NonNull;
+import net.kano.nully.annotations.NonNull;
 import polyglot.frontend.FileSource;
 
 import java.io.IOException;

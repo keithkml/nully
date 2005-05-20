@@ -31,13 +31,13 @@
  *
  */
 
-package net.kano.nully.analysis;
+package net.kano.nully.plugin.analysis;
 
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiRecursiveElementVisitor;
 import com.intellij.psi.util.PsiSuperMethodUtil;
-import net.kano.nully.NonNull;
-import net.kano.nully.NullyTools;
+import net.kano.nully.annotations.NonNull;
+import net.kano.nully.plugin.NullyTools;
 
 import java.util.ArrayList;
 import java.util.List;

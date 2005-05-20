@@ -31,16 +31,17 @@
  *
  */
 
-package net.kano.nully.analysis;
+package net.kano.nully.plugin.analysis;
 
 import com.intellij.openapi.util.Key;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiJavaFile;
-import net.kano.nully.NonNull;
-import net.kano.nully.OffsetsTracker;
-import net.kano.nully.NullCheckLevel;
-import net.kano.nully.analysis.nulls.psipreprocess.PreparerForSoot;
-import net.kano.nully.analysis.nulls.CodeAnalyzer;
+import net.kano.nully.annotations.NonNull;
+import net.kano.nully.plugin.OffsetsTracker;
+import net.kano.nully.plugin.inspection.NullInspectorOptions;
+import net.kano.nully.annotations.NullCheckLevel;
+import net.kano.nully.plugin.analysis.nulls.psipreprocess.PreparerForSoot;
+import net.kano.nully.plugin.analysis.nulls.CodeAnalyzer;
 import soot.SootClass;
 import soot.SootMethod;
 
@@ -61,6 +62,7 @@ public class AnalysisContext {
     private PreparerForSoot preparer;
     private CodeAnalyzer analyzer;
     private EnumSet<NullCheckLevel> checkLevels = EnumSet.noneOf(NullCheckLevel.class);
+    private NullInspectorOptions options = new NullInspectorOptions();
 
     public OffsetsTracker getTracker() {
         return tracker;
@@ -161,4 +163,12 @@ public class AnalysisContext {
     }
 
     public EnumSet<NullCheckLevel> getCheckLevels() { return checkLevels; }
+
+    public NullInspectorOptions getOptions() {
+        return options;
+    }
+
+    public void setOptions(NullInspectorOptions options) {
+        this.options = options;
+    }
 }

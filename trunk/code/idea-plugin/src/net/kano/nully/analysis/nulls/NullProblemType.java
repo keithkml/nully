@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.analysis.nulls;
+package net.kano.nully.plugin.analysis.nulls;
 
 public enum NullProblemType {
     NULL_ASSIGNMENT_TO_NONNULL_VARIABLE,

@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.inspection;
+package net.kano.nully.plugin.inspection;
 
 import com.intellij.codeInspection.InspectionManager;
 import com.intellij.codeInspection.LocalQuickFix;
@@ -41,14 +41,14 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiVariable;
-import net.kano.nully.NullyTools;
-import net.kano.nully.analysis.AnalysisContext;
-import net.kano.nully.analysis.nulls.NullProblemType;
-import static net.kano.nully.analysis.nulls.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
-import static net.kano.nully.analysis.nulls.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
-import static net.kano.nully.analysis.nulls.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
-import net.kano.nully.analysis.ProblemFinder;
-import net.kano.nully.analysis.nulls.NullValueProblem;
+import net.kano.nully.plugin.PsiTools;
+import net.kano.nully.plugin.analysis.AnalysisContext;
+import net.kano.nully.plugin.analysis.nulls.NullProblemType;
+import static net.kano.nully.plugin.analysis.nulls.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
+import static net.kano.nully.plugin.analysis.nulls.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
+import static net.kano.nully.plugin.analysis.nulls.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
+import net.kano.nully.plugin.analysis.ProblemFinder;
+import net.kano.nully.plugin.analysis.nulls.NullValueProblem;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -82,12 +82,12 @@ public class ProblemHighlighter {
 
         String desc = null;
         if (type == NULL_ARGUMENT_FOR_NONNULL_PARAMETER) {
-            PsiMethod method = NullyTools.getCalledMethod(element);
+            PsiMethod method = PsiTools.getCalledMethod(element);
             desc = "<HTML>Argument passed to <B>" + method.getName()
                     + "()</B> may be illegally null";
 
         } else if (type == NULL_ASSIGNMENT_TO_NONNULL_VARIABLE) {
-            PsiVariable var = NullyTools.getAssignedVariable(element);
+            PsiVariable var = PsiTools.getAssignedVariable(element);
             desc = "<HTML>Value assigned to <B>" + var.getName()
                                 + "</B> may be illegally null";
 

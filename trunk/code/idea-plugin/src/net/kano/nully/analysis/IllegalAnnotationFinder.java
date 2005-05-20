@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.analysis;
+package net.kano.nully.plugin.analysis;
 
 import java.util.Collection;
 import java.util.List;
@@ -46,6 +46,9 @@ public class IllegalAnnotationFinder implements ProblemFinder<IllegalAnnotationP
 
         PrimitiveAnnotationFinder returnFinder = new PrimitiveAnnotationFinder();
         problems.addAll(returnFinder.findProblems(context));
+
+        DoubleAnnotationFinder doubleFinder = new DoubleAnnotationFinder();
+        problems.addAll(doubleFinder.findProblems(context));
 
         return problems;
     }

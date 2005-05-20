@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.analysis.nulls.psipreprocess;
+package net.kano.nully.plugin.analysis.nulls.psipreprocess;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.psi.JavaTokenType;
@@ -63,7 +63,7 @@ import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.util.IncorrectOperationException;
 import com.siyeh.ig.psiutils.ClassUtils;
 import com.siyeh.ig.psiutils.ExpectedTypeUtils;
-import net.kano.nully.NonNull;
+import net.kano.nully.annotations.NonNull;
 
 import java.util.ArrayList;
 import java.util.HashMap;

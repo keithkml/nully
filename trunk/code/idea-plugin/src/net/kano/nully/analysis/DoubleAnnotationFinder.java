@@ -31,20 +31,49 @@
  *
  */
 
-package net.kano.nully.plugin.analysis.nulls;
+package net.kano.nully.plugin.analysis;
 
-import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiAnnotation;
+import com.intellij.psi.PsiJavaFile;
+import com.intellij.psi.PsiModifierList;
+import com.intellij.psi.PsiRecursiveElementVisitor;
 import net.kano.nully.annotations.NonNull;
+import net.kano.nully.annotations.Nullable;
 
-public class NullValueProblem extends NullProblem {
-    //TOLATER: quick fix for nonnull parameter value in nonnull context should be to nonnull the param
-    private final NullProblemType type;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
-    public NullValueProblem(@NonNull PsiElement element,
-            @NonNull NullProblemType type) {
-        super(element);
-        this.type = type;
+public class DoubleAnnotationFinder implements ProblemFinder<DoubleAnnotationProblem> {
+    @NonNull public Collection<DoubleAnnotationProblem> findProblems(
+            @NonNull AnalysisContext context) {
+        PsiJavaFile orig = context.getFileOrig();
+        DoubleAnnotationVisitor visitor = new DoubleAnnotationVisitor();
+        orig.accept(visitor);
+
+        List<DoubleAnnotationProblem> problems = new ArrayList<DoubleAnnotationProblem>();
+        for (PsiAnnotation anno : visitor.getBadElements()) {
+            problems.add(new DoubleAnnotationProblem(anno));
+        }
+        return problems;
     }
 
-    public @NonNull NullProblemType getType() { return type; }
+    private class DoubleAnnotationVisitor extends PsiRecursiveElementVisitor {
+        private List<PsiAnnotation> badElements = new ArrayList<PsiAnnotation>();
+
+
+        public void visitModifierList(PsiModifierList list) {
+            super.visitModifierList(list);
+
+            PsiAnnotation nn = list.findAnnotation(NonNull.class.getName());
+            PsiAnnotation nu = list.findAnnotation(Nullable.class.getName());
+            if (nn != null && nu != null) {
+                badElements.add(nn);
+                badElements.add(nu);
+            }
+        }
+
+        public List<PsiAnnotation> getBadElements() { return badElements; }
+    }
+
 }

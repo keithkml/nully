@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.analysis.nulls.psipreprocess;
+package net.kano.nully.plugin.analysis.nulls.psipreprocess;
 
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiCodeBlock;
@@ -48,8 +48,8 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiMember;
 import com.intellij.util.IncorrectOperationException;
 import com.intellij.openapi.diagnostic.Logger;
-import net.kano.nully.NullyTools;
-import net.kano.nully.NonNull;
+import net.kano.nully.annotations.NonNull;
+import net.kano.nully.plugin.PsiTools;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -151,12 +151,12 @@ public class PsiOtherMethodStripper extends PsiRecursiveElementVisitor {
         try {
             field.getModifierList().setModifierProperty("final", false);
         } catch (IncorrectOperationException e) {
-            LOGGER.error(NullyTools.getQualifiedMemberName(field), e);
+            LOGGER.error(PsiTools.getQualifiedMemberName(field), e);
             return;
         }
 
         PsiElementFactory factory = field.getManager().getElementFactory();
-        String defaultValue = NullyTools.getDefaultValue(field.getType());
+        String defaultValue = PsiTools.getDefaultValue(field.getType());
         PsiExpression initializer = field.getInitializer();
         if (initializer == null) return;
         try {
@@ -164,7 +164,7 @@ public class PsiOtherMethodStripper extends PsiRecursiveElementVisitor {
                     defaultValue, initializer);
             initializer.replace(defEl);
         } catch (IncorrectOperationException e) {
-            LOGGER.error(NullyTools.getQualifiedMemberName(field), e);
+            LOGGER.error(PsiTools.getQualifiedMemberName(field), e);
         }
     }
 
@@ -187,7 +187,7 @@ public class PsiOtherMethodStripper extends PsiRecursiveElementVisitor {
                 body.deleteChildRange(statements[0],
                         statements[statements.length - 1]);
             } catch (IncorrectOperationException e) {
-                LOGGER.error(NullyTools.getQualifiedMemberName(method), e);
+                LOGGER.error(PsiTools.getQualifiedMemberName(method), e);
             }
         }
 
@@ -225,13 +225,13 @@ public class PsiOtherMethodStripper extends PsiRecursiveElementVisitor {
             }
         } else {
             // insert a dummy return value
-            String val = NullyTools.getDefaultValue(method.getReturnType());
+            String val = PsiTools.getDefaultValue(method.getReturnType());
             try {
                 body.addAfter(factory.createStatementFromText("return "
                         + val + ";", body),
                         body.getLBrace());
             } catch (IncorrectOperationException e) {
-                LOGGER.error(NullyTools.getQualifiedMemberName(method), e);
+                LOGGER.error(PsiTools.getQualifiedMemberName(method), e);
             }
         }
     }
@@ -243,7 +243,7 @@ public class PsiOtherMethodStripper extends PsiRecursiveElementVisitor {
      * @param aClass a class
      */
     private void deleteClass(@NonNull PsiClass aClass) {
-        String actualName = NullyTools.getJavaNameForClass(aClass);
+        String actualName = PsiTools.getJavaNameForClass(aClass);
         try {
             aClass.delete();
             strippedClassesNames.add(actualName);

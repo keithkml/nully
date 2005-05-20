@@ -31,29 +31,14 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.annotations;
 
-public final class NonNullTools {
-    private NonNullTools() { }
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.lang.annotation.ElementType;
 
-    public static @NonNull <E> E checkNonNullParameter(E val, String paramName, int paramIndex) {
-        if (val == null) {
-            throw new NullParameterException(paramName, paramIndex);
-        }
-        return val;
-    }
-    
-    public static @NonNull <E> E checkNonNullReturn(E val) {
-        if (val == null) {
-            throw new NullReturnException();
-        }
-        return val;
-    }
-
-    public static @NonNull <E> E checkNonNullValue(E val) {
-        if (val == null) {
-            throw new UnexpectedNullValueException();
-        }
-        return val;
-    }
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface NullyInstrumented {
 }

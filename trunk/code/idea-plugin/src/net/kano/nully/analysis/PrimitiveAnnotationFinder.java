@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.analysis;
+package net.kano.nully.plugin.analysis;
 
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiModifierListOwner;
@@ -42,8 +42,8 @@ import com.intellij.psi.PsiLocalVariable;
 import com.intellij.psi.PsiType;
 import com.intellij.psi.PsiPrimitiveType;
 import com.intellij.psi.PsiAnnotation;
-import net.kano.nully.NonNull;
-import net.kano.nully.NullyTools;
+import net.kano.nully.annotations.NonNull;
+import net.kano.nully.plugin.NullyTools;
 
 import java.util.ArrayList;
 import java.util.List;

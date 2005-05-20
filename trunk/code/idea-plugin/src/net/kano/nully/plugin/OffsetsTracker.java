@@ -31,10 +31,11 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.plugin;
 
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiJavaFile;
+import com.intellij.psi.util.PsiTreeUtil;
 import soot.tagkit.SourceLnPosTag;
 
 import java.io.IOException;
@@ -86,8 +87,14 @@ public class OffsetsTracker {
 
     public PsiElement getElementAtPosition(PsiJavaFile fileCopy,
             SourceLnPosTag useTag) {
-        int roff = getOffset(useTag.startLn(), useTag.startPos());
-        return fileCopy.findElementAt(roff);
+        int foff = getOffset(useTag.startLn(), useTag.startPos());
+        PsiElement first = fileCopy.findElementAt(foff);
+        int eoff = getOffset(useTag.endLn(), useTag.endPos()) - 1;
+        PsiElement last = fileCopy.findElementAt(eoff);
+        PsiElement commonParent = PsiTreeUtil.findCommonParent(first, last);
+
+        if (commonParent != null) return commonParent;
+        else return first;
     }
 
     public int getLine(int off) {

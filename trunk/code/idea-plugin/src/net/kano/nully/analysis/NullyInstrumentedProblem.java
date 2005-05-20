@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.analysis;
+package net.kano.nully.plugin.analysis;
 
 import com.intellij.psi.PsiAnnotation;
 

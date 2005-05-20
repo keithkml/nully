@@ -31,13 +31,6 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.annotations;
 
-public class UnexpectedNullValueException extends IllegalStateException {
-    public UnexpectedNullValueException() {
-    }
-
-    public UnexpectedNullValueException(String s) {
-        super(s);
-    }
-}
+public enum NullCheckLevel { EDITOR, COMPILER, RUNTIME, ALL }

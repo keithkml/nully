@@ -31,24 +31,30 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.plugin;
 
-public class NullParameterException extends IllegalArgumentException {
-    private final String param;
-    private final int paramIndex;
+import com.intellij.psi.PsiExpression;
+import com.intellij.psi.PsiModifierListOwner;
 
-    public NullParameterException(String param, int paramIndex) {
-        super(param + " (parameter #" + paramIndex + ") cannot be null");
+/**
+ * Created by IntelliJ IDEA. User: keithkml Date: May 19, 2005 Time: 4:20:34 PM
+ * To change this template use File | Settings | File Templates.
+ */
+public class ReferencedElementInfo {
+    private PsiExpression refExpression;
+    private PsiModifierListOwner referenced;
 
-        this.param = param;
-        this.paramIndex = paramIndex;
+    public ReferencedElementInfo(PsiExpression refExpression,
+            PsiModifierListOwner referenced) {
+        this.refExpression = refExpression;
+        this.referenced = referenced;
     }
 
-    public String getParameterName() {
-        return param;
+    public PsiExpression getRefExpression() {
+        return refExpression;
     }
 
-    public int getParameterIndex() {
-        return paramIndex;
+    public PsiModifierListOwner getReferenced() {
+        return referenced;
     }
 }

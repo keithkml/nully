@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.inspection;
+package net.kano.nully.plugin.inspection;
 
 import com.intellij.codeInspection.InspectionManager;
 import com.intellij.codeInspection.ProblemDescriptor;
@@ -39,22 +39,26 @@ import static com.intellij.codeInspection.ProblemHighlightType.GENERIC_ERROR_OR_
 import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.util.PsiTreeUtil;
-import net.kano.nully.ImportantSuperMethodInfo;
-import net.kano.nully.NonNull;
-import net.kano.nully.NullyTools;
-import net.kano.nully.OverrideType;
-import static net.kano.nully.OverrideType.IMPLEMENTS;
-import static net.kano.nully.OverrideType.OVERRIDES;
-import net.kano.nully.analysis.IllegalOverrideFinder;
-import net.kano.nully.analysis.IllegalOverrideProblem;
-import net.kano.nully.analysis.IllegalParamOverrideProblem;
-import net.kano.nully.analysis.IllegalReturnOverrideProblem;
+import com.intellij.openapi.diagnostic.Logger;
+import net.kano.nully.plugin.ImportantSuperMethodInfo;
+import net.kano.nully.plugin.PsiTools;
+import net.kano.nully.annotations.NonNull;
+import net.kano.nully.plugin.OverrideType;
+import static net.kano.nully.plugin.OverrideType.IMPLEMENTS;
+import static net.kano.nully.plugin.OverrideType.OVERRIDES;
+import net.kano.nully.plugin.analysis.IllegalOverrideFinder;
+import net.kano.nully.plugin.analysis.IllegalOverrideProblem;
+import net.kano.nully.plugin.analysis.IllegalParamOverrideProblem;
+import net.kano.nully.plugin.analysis.IllegalReturnOverrideProblem;
+import net.kano.nully.plugin.analysis.AnalysisContext;
 
 import java.util.EnumSet;
 import java.util.List;
 
 public class IllegalOverrideInspector
         extends ProblemFinderBasedInspector<IllegalOverrideFinder, IllegalOverrideProblem<?>> {
+    private static final Logger LOGGER = Logger.getInstance(IllegalOverrideInspector.class.getName());
+
     public String getDisplayName() {
         return "Method overrides @" + NonNull.class.getSimpleName() + " method without "
                 + "@" + NonNull.class.getSimpleName() + " declaration";
@@ -72,7 +76,8 @@ public class IllegalOverrideInspector
         return EnumSet.of(InspectionType.METHOD);
     }
 
-    protected void addProblems(InspectionManager manager,
+    protected void addProblems(AnalysisContext context,
+            InspectionManager manager,
             List<ProblemDescriptor> problems,
             IllegalOverrideProblem<?> problem) {
         IllegalOverrideProblem hack = problem;
@@ -82,7 +87,7 @@ public class IllegalOverrideInspector
             PsiAnnotation anno = paramProblem.getElement();
             PsiMethod method = PsiTreeUtil.getParentOfType(anno, PsiMethod.class);
             ImportantSuperMethodInfo superInfo
-                    = NullyTools.getImportantSuperMethod(method,
+                    = PsiTools.getImportantSuperMethod(method,
                         paramProblem.getSuperMethods());
             PsiMethod superm = superInfo.getOverridden();
             OverrideType overrideType = superInfo.getType();
@@ -90,29 +95,27 @@ public class IllegalOverrideInspector
             String word = null;
             if (overrideType == IMPLEMENTS) {
                 word = "implemented";
-            } else
-            if (overrideType == OVERRIDES) word = "overridden";
+            } else if (overrideType == OVERRIDES) word = "overridden";
             LOGGER.assertTrue(word != null);
 
             String superClassName = superm.getContainingClass().getName();
             String annoName = anno.getNameReferenceElement().getReferenceName();
             problems.add(manager.createProblemDescriptor(anno,
-                    "Parameter is declared as @" + annoName + " but " + word
-                            + " parameter from " + superClassName + " is not; "
-                            + "nullness constraint cannot be strengthened",
+                    "Parameter cannot be declared as @" + annoName + " when " + word
+                            + " parameter from " + superClassName + " is not",
                     new RemoveAnnotationQuickFix(NonNull.class.getName()),
                     GENERIC_ERROR_OR_WARNING));
 
         } else if (hack instanceof IllegalReturnOverrideProblem) {
             IllegalReturnOverrideProblem returnProblem = (IllegalReturnOverrideProblem) hack;
             PsiMethod method = returnProblem.getElement();
-            ImportantSuperMethodInfo info = NullyTools.getImportantSuperMethod(method,
+            ImportantSuperMethodInfo info = PsiTools.getImportantSuperMethod(method,
                     returnProblem.getBadSupers());
 
             PsiMethod overriddenMethod = info.getOverridden();
             String overriddenText;
             if (overriddenMethod != null) {
-                String overridden = NullyTools.getQualifiedMemberName(overriddenMethod);
+                String overridden = PsiTools.getQualifiedMemberName(overriddenMethod);
                 overriddenText = "method " + overridden;
             } else {
                 overriddenText = "methods";

@@ -34,17 +34,15 @@
 package net.kano.nully.plugin.analysis.nulls;
 
 import com.intellij.psi.PsiElement;
+import net.kano.nully.plugin.analysis.NullyProblem;
 import net.kano.nully.annotations.NonNull;
 
-public class NullValueProblem extends NullProblem {
-    //TOLATER: quick fix for nonnull parameter value in nonnull context should be to nonnull the param
-    private final NullProblemType type;
-
-    public NullValueProblem(@NonNull PsiElement element,
-            @NonNull NullProblemType type) {
+/**
+ * Created by IntelliJ IDEA. User: keithkml Date: May 19, 2005 Time: 1:05:53 PM
+ * To change this template use File | Settings | File Templates.
+ */
+public class NullProblem extends NullyProblem<PsiElement> {
+    public NullProblem(@NonNull PsiElement element) {
         super(element);
-        this.type = type;
     }
-
-    public @NonNull NullProblemType getType() { return type; }
 }

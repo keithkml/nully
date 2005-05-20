@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.analysis.nulls.soot;
+package net.kano.nully.plugin.analysis.nulls.soot;
 
 import java.io.Reader;
 import java.io.IOException;
