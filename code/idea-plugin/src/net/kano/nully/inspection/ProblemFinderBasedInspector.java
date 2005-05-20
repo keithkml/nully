@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.inspection;
+package net.kano.nully.plugin.inspection;
 
 import com.intellij.codeInspection.InspectionManager;
 import com.intellij.codeInspection.ProblemDescriptor;
@@ -41,10 +41,10 @@ import com.intellij.psi.PsiField;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiMethod;
-import net.kano.nully.analysis.AnalysisContext;
-import net.kano.nully.analysis.NullyProblem;
-import net.kano.nully.analysis.ProblemFinder;
-import net.kano.nully.NullCheckLevel;
+import net.kano.nully.plugin.analysis.AnalysisContext;
+import net.kano.nully.plugin.analysis.NullyProblem;
+import net.kano.nully.plugin.analysis.ProblemFinder;
+import net.kano.nully.annotations.NullCheckLevel;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -53,7 +53,7 @@ import java.util.List;
 public abstract class ProblemFinderBasedInspector<F extends ProblemFinder<P>,
         P extends NullyProblem<?>>
         extends AbstractNullyInspection {
-    protected static final Logger LOGGER
+    private static final Logger LOGGER
             = Logger.getInstance(IllegalOverrideInspector.class.getName());
 
     protected abstract F getFinderInstance();
@@ -133,7 +133,7 @@ public abstract class ProblemFinderBasedInspector<F extends ProblemFinder<P>,
             InspectionManager manager) {
         List<ProblemDescriptor> problems = new ArrayList<ProblemDescriptor>();
         for (P problem : getFinderInstance().findProblems(context)) {
-            addProblems(manager, problems, problem);
+            addProblems(context, manager, problems, problem);
         }
         return problems.toArray(new ProblemDescriptor[problems.size()]);
     }
@@ -157,7 +157,8 @@ public abstract class ProblemFinderBasedInspector<F extends ProblemFinder<P>,
         context.setFileOrig(jfile);
     }
 
-    protected abstract void addProblems(InspectionManager manager,
+    protected abstract void addProblems(AnalysisContext context,
+            InspectionManager manager,
             List<ProblemDescriptor> problems,
             P problem);
 

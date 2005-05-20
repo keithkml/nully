@@ -31,6 +31,6 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.plugin;
 
 public enum OverrideType { OVERRIDES, IMPLEMENTS }

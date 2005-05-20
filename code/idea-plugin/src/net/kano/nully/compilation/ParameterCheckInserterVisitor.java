@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.compilation;
+package net.kano.nully.plugin.compilation;
 
 import com.intellij.psi.PsiRecursiveElementVisitor;
 import com.intellij.psi.PsiMethod;
@@ -42,10 +42,10 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiWhiteSpace;
 import com.intellij.util.IncorrectOperationException;
 import com.intellij.openapi.diagnostic.Logger;
-import net.kano.nully.NullyTools;
-import net.kano.nully.NullParameterException;
-import net.kano.nully.NonNull;
-import net.kano.nully.NullCheckLevel;
+import net.kano.nully.plugin.NullyTools;
+import net.kano.nully.annotations.NullParameterException;
+import net.kano.nully.annotations.NonNull;
+import net.kano.nully.annotations.NullCheckLevel;
 
 import java.util.Set;
 import java.util.HashSet;

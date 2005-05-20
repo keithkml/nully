@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.analysis.nulls.psipreprocess;
+package net.kano.nully.plugin.analysis.nulls.psipreprocess;
 
 import com.intellij.psi.PsiRecursiveElementVisitor;
 import com.intellij.psi.PsiMethod;

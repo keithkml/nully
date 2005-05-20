@@ -31,20 +31,12 @@
  *
  */
 
-package net.kano.nully.plugin.analysis.nulls;
+package net.kano.nully.plugin.analysis;
 
-import com.intellij.psi.PsiElement;
-import net.kano.nully.annotations.NonNull;
+import com.intellij.psi.PsiAnnotation;
 
-public class NullValueProblem extends NullProblem {
-    //TOLATER: quick fix for nonnull parameter value in nonnull context should be to nonnull the param
-    private final NullProblemType type;
-
-    public NullValueProblem(@NonNull PsiElement element,
-            @NonNull NullProblemType type) {
-        super(element);
-        this.type = type;
+public class DoubleAnnotationProblem extends IllegalAnnotationProblem {
+    public DoubleAnnotationProblem(PsiAnnotation anno) {
+        super(anno);
     }
-
-    public @NonNull NullProblemType getType() { return type; }
 }

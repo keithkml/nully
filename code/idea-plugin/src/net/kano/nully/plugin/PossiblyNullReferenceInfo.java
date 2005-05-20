@@ -31,18 +31,27 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.plugin;
 
-import java.lang.annotation.Documented;
-import static java.lang.annotation.ElementType.LOCAL_VARIABLE;
-import static java.lang.annotation.ElementType.METHOD;
-import static java.lang.annotation.ElementType.PARAMETER;
-import java.lang.annotation.Retention;
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
-import java.lang.annotation.Target;
+import com.intellij.psi.PsiExpression;
+import com.intellij.psi.PsiElement;
+import net.kano.nully.annotations.NonNull;
 
-@Documented
-@Retention(RUNTIME)
-@Target({PARAMETER, LOCAL_VARIABLE, METHOD})
-public @interface Nullable {
+/**
+ * Created by IntelliJ IDEA. User: keithkml Date: May 19, 2005 Time: 3:50:17 PM
+ * To change this template use File | Settings | File Templates.
+ */
+public class PossiblyNullReferenceInfo {
+    private PsiExpression possiblyNullReference;
+    private PsiElement use;
+
+    public PossiblyNullReferenceInfo(@NonNull PsiExpression possiblyNullReference,
+            @NonNull PsiElement use) {
+        this.possiblyNullReference = possiblyNullReference;
+        this.use = use;
+    }
+
+    public PsiExpression getPossiblyNullReference() { return possiblyNullReference; }
+
+    public PsiElement getUse() { return use; }
 }

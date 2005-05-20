@@ -31,22 +31,17 @@
  *
  */
 
-package net.kano.nully.inspection;
-
-import static com.intellij.codeInspection.ProblemHighlightType.GENERIC_ERROR_OR_WARNING;
-import net.kano.nully.analysis.ProblemFinder;
-import net.kano.nully.analysis.NullyProblem;
-import net.kano.nully.analysis.NullyInstrumentedFinder;
-import net.kano.nully.analysis.NullyInstrumentedProblem;
-import net.kano.nully.NullyInstrumented;
-
-import java.util.EnumSet;
-import java.util.List;
+package net.kano.nully.plugin.inspection;
 
 import com.intellij.codeInspection.InspectionManager;
 import com.intellij.codeInspection.ProblemDescriptor;
-import com.intellij.codeInspection.ProblemHighlightType;
-import com.intellij.codeInspection.LocalQuickFix;
+import net.kano.nully.annotations.NullyInstrumented;
+import net.kano.nully.plugin.analysis.NullyInstrumentedFinder;
+import net.kano.nully.plugin.analysis.NullyInstrumentedProblem;
+import net.kano.nully.plugin.analysis.AnalysisContext;
+
+import java.util.EnumSet;
+import java.util.List;
 
 public class NullyInstrumentedInspector extends ProblemFinderBasedInspector<NullyInstrumentedFinder, NullyInstrumentedProblem> {
     protected NullyInstrumentedFinder getFinderInstance() {
@@ -57,7 +52,8 @@ public class NullyInstrumentedInspector extends ProblemFinderBasedInspector<Null
         return EnumSet.of(InspectionType.FILE);
     }
 
-    protected void addProblems(InspectionManager manager,
+    protected void addProblems(AnalysisContext context,
+            InspectionManager manager,
             List<ProblemDescriptor> problems,
             NullyInstrumentedProblem problem) {
     }

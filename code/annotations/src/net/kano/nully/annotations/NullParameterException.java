@@ -31,36 +31,24 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.annotations;
 
-import com.intellij.codeInspection.InspectionToolProvider;
-import com.intellij.openapi.components.ApplicationComponent;
-import net.kano.nully.inspection.IllegalOverrideInspector;
-import net.kano.nully.inspection.IllegalAnnotationInspector;
-import net.kano.nully.inspection.NullProblemInspector;
+public class NullParameterException extends IllegalArgumentException {
+    private final String param;
+    private final int paramIndex;
 
-public class NullyApplicationComponent implements ApplicationComponent, InspectionToolProvider {
-    //TOLATER: detect when null check is needed for non-@NonNull parameter
-    //TOLATER: detect when method only returns non-null
-    //TOLATER: detect possibly null @nullable 
+    public NullParameterException(String param, int paramIndex) {
+        super(param + " (parameter #" + paramIndex + ") cannot be null");
 
-    public String getComponentName() {
-        return "Nully";
+        this.param = param;
+        this.paramIndex = paramIndex;
     }
 
-    public void initComponent() {
-//        G.v().out = new PrintStream(new OutputStream() {
-//            public void write(int i) throws IOException {
-//            }
-//        });
+    public String getParameterName() {
+        return param;
     }
 
-    public void disposeComponent() {
-    }
-
-    public Class[] getInspectionClasses() {
-
-        return new Class[] { NullProblemInspector.class,
-            IllegalOverrideInspector.class, IllegalAnnotationInspector.class };
+    public int getParameterIndex() {
+        return paramIndex;
     }
 }

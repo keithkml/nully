@@ -31,25 +31,13 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.annotations;
 
-import com.intellij.psi.PsiMethod;
-
-public class ImportantSuperMethodInfo {
-    private final OverrideType type;
-    private final PsiMethod overridden;
-
-    public ImportantSuperMethodInfo(@NonNull OverrideType type,
-            @NonNull PsiMethod overridden) {
-        this.type = type;
-        this.overridden = overridden;
+public class UnexpectedNullValueException extends IllegalStateException {
+    public UnexpectedNullValueException() {
     }
 
-    public @NonNull OverrideType getType() {
-        return type;
-    }
-
-    public @NonNull PsiMethod getOverridden() {
-        return overridden;
+    public UnexpectedNullValueException(String s) {
+        super(s);
     }
 }

@@ -31,36 +31,44 @@
  *
  */
 
-package net.kano.nully.analysis.nulls;
+package net.kano.nully.plugin.analysis.nulls;
 
-import net.kano.nully.NonNull;
-import net.kano.nully.SootTools;
-import net.kano.nully.analysis.AnalysisContext;
-import net.kano.nully.analysis.ProblemFinder;
+import net.kano.nully.annotations.NonNull;
+import net.kano.nully.plugin.NullyTools;
+import net.kano.nully.plugin.PossiblyNullReferenceInfo;
+import net.kano.nully.plugin.SootTools;
+import net.kano.nully.plugin.analysis.AnalysisContext;
+import net.kano.nully.plugin.analysis.ProblemFinder;
 import soot.Body;
 import soot.SootMethod;
-import soot.Unit;
 import soot.ValueBox;
-import soot.jimple.toolkits.annotation.nullcheck.BranchedRefVarsAnalysis;
+import soot.jimple.Stmt;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 public class NullableProblemFinder implements ProblemFinder<NullableProblem> {
-    //TODO: implement @Nullable stuff
     public Collection<NullableProblem> findProblems(AnalysisContext context) {
+        List<NullableProblem> problems = new ArrayList<NullableProblem>();
         for (SootMethod method : context.getSootMethods()) {
-            tagProblemsForMember(method.retrieveActiveBody());
+            tagProblemsForMember(context, method.retrieveActiveBody(), problems);
         }
+        return problems;
     }
 
-    private synchronized void tagProblemsForMember(@NonNull Body body) {
-        for (Unit unit : (Collection<Unit>)body.getUnits()) {
-            for (ValueBox valueBox : (Collection<ValueBox>) unit.getUseBoxes()) {
-                if (!SootTools.hasMayBeNullTag(valueBox)) continue;
-
-                BranchedRefVarsAnalysis
+    private synchronized void tagProblemsForMember(AnalysisContext context,
+            @NonNull Body body, List<NullableProblem> problems) {
+        for (Stmt unit : (Collection<Stmt>)body.getUnits()) {
+            ValueBox valueBox = SootTools.getReferencedObject(unit);
+            if (valueBox == null) continue;
+            PossiblyNullReferenceInfo info
+                        = NullyTools.getPossiblyNullNullableReference(context,
+                        unit, valueBox);
+            if (info != null) {
+                problems.add(new NullableProblem(info.getUse(),
+                        info.getPossiblyNullReference()));
             }
         }
     }
-
 }

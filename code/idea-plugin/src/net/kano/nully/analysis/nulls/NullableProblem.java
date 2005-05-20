@@ -31,13 +31,18 @@
  *
  */
 
-package net.kano.nully.analysis.nulls;
+package net.kano.nully.plugin.analysis.nulls;
 
-import net.kano.nully.analysis.NullyProblem;
+import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiExpression;
 
-public class NullableProblem extends NullyProblem<PsiExpression> {
-    protected NullableProblem(PsiExpression element) {
+public class NullableProblem extends NullProblem {
+    private PsiExpression origBad;
+
+    public NullableProblem(PsiElement element, PsiExpression origBad) {
         super(element);
+        this.origBad = origBad;
     }
+
+    public PsiExpression getReferenceExpression() { return origBad; }
 }

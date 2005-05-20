@@ -31,9 +31,9 @@
  *
  */
 
-package net.kano.nully.analysis;
+package net.kano.nully.plugin.analysis;
 
-import net.kano.nully.NonNull;
+import net.kano.nully.annotations.NonNull;
 
 public abstract class NullyProblem<E> {
     private E element;

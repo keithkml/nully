@@ -31,8 +31,9 @@
  *
  */
 
-package net.kano.nully.analysis.nulls.soot;
+package net.kano.nully.plugin.analysis.nulls.soot;
 
+import net.kano.nully.plugin.SootTools;
 import soot.Body;
 import soot.BodyTransformer;
 import soot.RefLikeType;
@@ -60,18 +61,18 @@ public class NullPointerTagger extends BodyTransformer {
             FlowSet beforeSet = (FlowSet) analysis.getFlowBefore(s);
 
             for (ValueBox vBox : (List<ValueBox>) s.getUseBoxes()) {
-                addColorTags(vBox, beforeSet, analysis);
+                addColorTags(vBox, s, beforeSet, analysis);
             }
 
             FlowSet afterSet = (FlowSet) analysis.getFallFlowAfter(s);
 
             for (ValueBox vBox : (Collection<ValueBox>)s.getDefBoxes()) {
-                addColorTags(vBox, afterSet, analysis);
+                addColorTags(vBox, s, afterSet, analysis);
             }
         }
 	}
 
-	private void addColorTags(ValueBox vBox, FlowSet set,
+	private void addColorTags(ValueBox vBox, Stmt s, FlowSet set,
             BranchedRefVarsAnalysis analysis){
 		Value val = vBox.getValue();
         if (!(val.getType() instanceof RefLikeType)) return;
@@ -83,6 +84,8 @@ public class NullPointerTagger extends BodyTransformer {
                 || vInfo == BranchedRefVarsAnalysis.kTop
                 || vInfo == BranchedRefVarsAnalysis.kBottom) {
             vBox.addTag(new MayBeNullTag(definitelyNull));
+            if (vBox == SootTools.getReferencedObject(s)) vBox.addTag(new MayThrowNpeTag(definitelyNull));
         }
     }
+
 }

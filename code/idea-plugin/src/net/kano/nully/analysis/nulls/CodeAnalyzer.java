@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.analysis.nulls;
+package net.kano.nully.plugin.analysis.nulls;
 
 import com.intellij.psi.PsiArrayType;
 import com.intellij.psi.PsiClass;
@@ -42,19 +42,19 @@ import com.intellij.psi.PsiType;
 import com.intellij.psi.PsiVariable;
 import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.util.IncorrectOperationException;
-import net.kano.nully.NonNullTools;
-import net.kano.nully.NullParameterException;
-import net.kano.nully.NullReturnException;
-import net.kano.nully.NullyTools;
-import net.kano.nully.OffsetsTracker;
-import net.kano.nully.UnexpectedNullValueException;
-import net.kano.nully.NonNull;
-import net.kano.nully.Nullable;
-import net.kano.nully.SootTools;
-import net.kano.nully.analysis.nulls.soot.JimpleMethodPreprocessor;
-import net.kano.nully.analysis.nulls.soot.NullPointerTagger;
-import net.kano.nully.analysis.nulls.soot.PsiJavaFileClassProvider;
-import net.kano.nully.analysis.AnalysisContext;
+import net.kano.nully.annotations.NonNullTools;
+import net.kano.nully.annotations.NullParameterException;
+import net.kano.nully.annotations.NullReturnException;
+import net.kano.nully.plugin.OffsetsTracker;
+import net.kano.nully.annotations.UnexpectedNullValueException;
+import net.kano.nully.annotations.NonNull;
+import net.kano.nully.annotations.Nullable;
+import net.kano.nully.plugin.SootTools;
+import net.kano.nully.plugin.PsiTools;
+import net.kano.nully.plugin.analysis.nulls.soot.JimpleMethodPreprocessor;
+import net.kano.nully.plugin.analysis.nulls.soot.NullPointerTagger;
+import net.kano.nully.plugin.analysis.nulls.soot.PsiJavaFileClassProvider;
+import net.kano.nully.plugin.analysis.AnalysisContext;
 import soot.ArrayType;
 import soot.Body;
 import soot.BooleanType;
@@ -96,6 +96,11 @@ import java.util.List;
 import java.util.Map;
 
 public class CodeAnalyzer {
+    //TODO: lock while using soot
+    //TOLATER: show definitely nulls even if not Nullable
+    //TODO: test nullable option
+    //TODO: run inspections in writeAction
+    //TOLATER: allow specification of nonnull param schemas for classes (Collection.add, etc)
     private AnalysisContext context;
 
     private Map<PsiType,Type> staticSootTypes = new HashMap<PsiType, Type>();
@@ -180,64 +185,68 @@ public class CodeAnalyzer {
 //        LocalSplitter.v().transform(body);
 //        CopyPropagator.v().transform(body);
         for (SootMethod method : context.getSootMethods()) {
-            Body body = method.retrieveActiveBody();
-            ConstantPropagatorAndFolder.v().transform(body);
-            List<Unit> units = new ArrayList<Unit>(body.getUnits());
-            for (Unit unit : units) {
-                if (!(unit instanceof JInvokeStmt)) continue;
+            convertSootStrippedAssignment(method);
+        }
+    }
 
-                boolean any = false;
-                int sline = 0;
-                int spos = 0;
-                int eline = 0;
-                int epos = 0;
-                for (Tag tag : (List<Tag>) unit.getTags()) {
-                    if (!(tag instanceof SourceLnPosTag)) continue;
+    private void convertSootStrippedAssignment(SootMethod method) {
+        Body body = method.retrieveActiveBody();
+        ConstantPropagatorAndFolder.v().transform(body);
+        List<Unit> units = new ArrayList<Unit>(body.getUnits());
+        for (Unit unit : units) {
+            if (!(unit instanceof JInvokeStmt)) continue;
 
-                    SourceLnPosTag posTag = (SourceLnPosTag) tag;
-                    if (!any) {
+            boolean any = false;
+            int sline = 0;
+            int spos = 0;
+            int eline = 0;
+            int epos = 0;
+            for (Tag tag : (List<Tag>) unit.getTags()) {
+                if (!(tag instanceof SourceLnPosTag)) continue;
+
+                SourceLnPosTag posTag = (SourceLnPosTag) tag;
+                if (!any) {
+                    sline = posTag.startLn();
+                    spos = posTag.startPos();
+                    eline = posTag.endLn();
+                    epos = posTag.endPos();
+                    any = true;
+                } else {
+                    if (posTag.startLn() < sline) {
                         sline = posTag.startLn();
                         spos = posTag.startPos();
+                    } else if (posTag.startPos() < spos) {
+                        spos = posTag.startPos();
+                    }
+                    if (posTag.endLn() > eline) {
                         eline = posTag.endLn();
-                        eline = posTag.endPos();
-                        any = true;
-                    } else {
-                        if (posTag.startLn() < sline) {
-                            sline = posTag.startLn();
-                            spos = posTag.startPos();
-                        } else if (posTag.startPos() < spos) {
-                            spos = posTag.startPos();
-                        }
-                        if (posTag.endLn() > eline) {
-                            eline = posTag.endLn();
-                            epos = posTag.endPos();
-                        } else if (posTag.endPos() > epos) {
-                            epos = posTag.endPos();
-                        }
+                        epos = posTag.endPos();
+                    } else if (posTag.endPos() > epos) {
+                        epos = posTag.endPos();
                     }
                 }
-                if (!any) continue;
-
-                OffsetsTracker tracker = context.getTracker();
-                PsiElement el = tracker.getElementAtPosition(context.getFileCopy(),
-                        new SourceLnPosTag(sline, eline, spos, epos));
-                if (el == null) continue;
-                PsiVariable var = NullyTools.getReferencedVariable(el);
-                if (var == null) continue;
-
-                JInvokeStmt invokeStmt = (JInvokeStmt) unit;
-                InvokeExpr invokeExpr = invokeStmt.getInvokeExpr();
-                Chain locals = body.getLocals();
-                String name = SootTools.getUnusedLocalName(locals);
-                Local local = new JimpleLocal(name, invokeExpr.getType());
-                locals.add(local);
-                JAssignStmt stmt = new JAssignStmt(local, invokeExpr);
-                stmt.addAllTagsOf(unit);
-                ValueBox origBox = stmt.getInvokeExprBox();
-                origBox.addAllTagsOf(invokeStmt.getInvokeExprBox());
-                origBox.addAllTagsOf(invokeStmt);
-                body.getUnits().swapWith(unit, stmt);
             }
+            if (!any) continue;
+
+            OffsetsTracker tracker = context.getTracker();
+            PsiElement el = tracker.getElementAtPosition(context.getFileCopy(),
+                    new SourceLnPosTag(sline, eline, spos, epos));
+            if (el == null) continue;
+            PsiVariable var = PsiTools.getReferencedVariable(el);
+            if (var == null) continue;
+
+            JInvokeStmt invokeStmt = (JInvokeStmt) unit;
+            InvokeExpr invokeExpr = invokeStmt.getInvokeExpr();
+            Chain locals = body.getLocals();
+            String name = SootTools.getUnusedLocalName(locals);
+            Local local = new JimpleLocal(name, invokeExpr.getType());
+            locals.add(local);
+            JAssignStmt stmt = new JAssignStmt(local, invokeExpr);
+            stmt.addAllTagsOf(unit);
+            ValueBox origBox = stmt.getInvokeExprBox();
+            origBox.addAllTagsOf(invokeStmt.getInvokeExprBox());
+            origBox.addAllTagsOf(invokeStmt);
+            body.getUnits().swapWith(unit, stmt);
         }
     }
 
@@ -255,7 +264,7 @@ public class CodeAnalyzer {
             Collections.addAll(classes, psiClass.getAllInnerClasses());
         }
         for (PsiClass cls : classes) {
-            names.add(NullyTools.getJavaNameForClass(cls));
+            names.add(PsiTools.getJavaNameForClass(cls));
         }
 
         // tell Soot where to find the code
@@ -305,7 +314,7 @@ public class CodeAnalyzer {
 
     private void addClass(PsiClass cls, List<SootClass> classes) {
         if (cls.isInterface()) return;
-        String name = NullyTools.getJavaNameForClass(cls);
+        String name = PsiTools.getJavaNameForClass(cls);
         classes.add(Scene.v().getSootClass(name));
         for (PsiClass psiClass : cls.getInnerClasses()) {
             addClass(psiClass, classes);

@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.inspection;
+package net.kano.nully.plugin.inspection;
 
 import com.intellij.codeInspection.InspectionManager;
 import com.intellij.codeInspection.ProblemDescriptor;
@@ -42,13 +42,14 @@ import com.intellij.psi.PsiModifierListOwner;
 import com.intellij.psi.PsiType;
 import com.intellij.psi.PsiVariable;
 import com.intellij.psi.util.PsiTreeUtil;
-import net.kano.nully.NonNull;
-import net.kano.nully.NullyInstrumented;
-import net.kano.nully.NullyTools;
-import net.kano.nully.analysis.IllegalAnnotationFinder;
-import net.kano.nully.analysis.IllegalAnnotationProblem;
-import net.kano.nully.analysis.NullyInstrumentedProblem;
-import net.kano.nully.analysis.PrimitiveAnnotationProblem;
+import net.kano.nully.annotations.NonNull;
+import net.kano.nully.annotations.NullyInstrumented;
+import net.kano.nully.plugin.PsiTools;
+import net.kano.nully.plugin.analysis.IllegalAnnotationFinder;
+import net.kano.nully.plugin.analysis.IllegalAnnotationProblem;
+import net.kano.nully.plugin.analysis.NullyInstrumentedProblem;
+import net.kano.nully.plugin.analysis.PrimitiveAnnotationProblem;
+import net.kano.nully.plugin.analysis.AnalysisContext;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -73,7 +74,8 @@ public class IllegalAnnotationInspector
         return EnumSet.of(InspectionType.FILE);
     }
 
-    protected void addProblems(InspectionManager manager,
+    protected void addProblems(AnalysisContext context,
+            InspectionManager manager,
             List<ProblemDescriptor> problems, IllegalAnnotationProblem problem) {
         PsiAnnotation anno = problem.getElement();
         PsiModifierListOwner owner = PsiTreeUtil.getParentOfType(anno,
@@ -85,7 +87,7 @@ public class IllegalAnnotationInspector
             if (owner instanceof PsiVariable) {
                 PsiVariable psiVariable = (PsiVariable) owner;
 
-                String typeStr = NullyTools.getVariableTypeString(psiVariable);
+                String typeStr = PsiTools.getVariableTypeString(psiVariable);
 
                 PsiType type = psiVariable.getType();
                 desc = "@" + annoName + " cannot be used with "

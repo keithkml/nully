@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2004, Keith Lea
+ *  Copyright (c) 2005, Keith Lea
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -31,41 +31,30 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.plugin.inspection;
 
-import com.intellij.openapi.compiler.CompilerManager;
-import com.intellij.openapi.components.ProjectComponent;
-import com.intellij.openapi.project.Project;
-import net.kano.nully.compilation.NullyCompilerStep;
+import java.beans.PropertyChangeSupport;
+import java.beans.PropertyChangeListener;
 
-public class NullyProjectComponent implements ProjectComponent {
-    private Project project;
-    private CompilerManager compilerManager;
-    private NullyCompilerStep nullChecker;
+public class NullInspectorOptions {
+    private PropertyChangeSupport pcs = new PropertyChangeSupport(this);
 
-    public NullyProjectComponent(Project project) {
-        this.project = project;
+    private boolean onlyNullable = true;
+    public static final String PROP_ONLY_NULLABLE = "onlyNullable";
+
+    public boolean isOnlyNullable() { return onlyNullable; }
+
+    public void setOnlyNullable(final boolean onlyNullable) {
+        boolean old = isOnlyNullable();
+        this.onlyNullable = onlyNullable;
+        pcs.firePropertyChange(PROP_ONLY_NULLABLE, old, onlyNullable);
     }
 
-    public void projectOpened() {
-        compilerManager = CompilerManager.getInstance(project);
-        nullChecker = new NullyCompilerStep(project);
-        compilerManager.addCompiler(nullChecker);
+    public synchronized void addPropertyChangeListener(PropertyChangeListener listener) {
+        pcs.addPropertyChangeListener(listener);
     }
 
-    public void projectClosed() {
-        compilerManager.removeCompiler(nullChecker);
-    }
-
-    public String getComponentName() {
-        return "Nully";
-    }
-
-    public void initComponent() {
-
-    }
-
-    public void disposeComponent() {
-
+    public synchronized void removePropertyChangeListener(PropertyChangeListener listener) {
+        pcs.removePropertyChangeListener(listener);
     }
 }

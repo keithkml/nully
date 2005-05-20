@@ -31,20 +31,26 @@
  *
  */
 
-package net.kano.nully.plugin.analysis.nulls;
+package net.kano.nully.plugin;
 
-import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiMethod;
 import net.kano.nully.annotations.NonNull;
 
-public class NullValueProblem extends NullProblem {
-    //TOLATER: quick fix for nonnull parameter value in nonnull context should be to nonnull the param
-    private final NullProblemType type;
+public class ImportantSuperMethodInfo {
+    private final OverrideType type;
+    private final PsiMethod overridden;
 
-    public NullValueProblem(@NonNull PsiElement element,
-            @NonNull NullProblemType type) {
-        super(element);
+    public ImportantSuperMethodInfo(@NonNull OverrideType type,
+            @NonNull PsiMethod overridden) {
         this.type = type;
+        this.overridden = overridden;
     }
 
-    public @NonNull NullProblemType getType() { return type; }
+    public @NonNull OverrideType getType() {
+        return type;
+    }
+
+    public @NonNull PsiMethod getOverridden() {
+        return overridden;
+    }
 }

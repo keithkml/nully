@@ -31,18 +31,36 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.plugin.inspection;
 
-import static java.lang.annotation.ElementType.CONSTRUCTOR;
-import static java.lang.annotation.ElementType.METHOD;
-import static java.lang.annotation.ElementType.PACKAGE;
-import static java.lang.annotation.ElementType.TYPE;
-import java.lang.annotation.Retention;
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
-import java.lang.annotation.Target;
+import com.jgoodies.binding.adapter.BasicComponentFactory;
+import com.jgoodies.binding.beans.BeanAdapter;
+import com.jgoodies.binding.value.ValueModel;
+import net.kano.nully.annotations.Nullable;
 
-@Retention(RUNTIME)
-@Target({CONSTRUCTOR, METHOD, TYPE, PACKAGE})
-public @interface SuppressNullChecks {
-    NullCheckLevel[] value() default NullCheckLevel.ALL;
+import javax.swing.BoxLayout;
+import javax.swing.JCheckBox;
+import javax.swing.JPanel;
+
+public class NullInspectorOptionsPanel extends JPanel {
+    private NullInspectorOptions options;
+    private BeanAdapter optionsModel;
+
+    private JCheckBox checkbox;
+
+    {
+        setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+    }
+
+    public NullInspectorOptionsPanel(NullInspectorOptions options) {
+        this.options = options;
+        optionsModel = new BeanAdapter(options, true);
+        ValueModel model = optionsModel.getValueModel(NullInspectorOptions.PROP_ONLY_NULLABLE);
+        checkbox = BasicComponentFactory.createCheckBox(model,
+                "Only treat @" + Nullable.class.getSimpleName()
+                        + " as possibly null");
+        add(checkbox);
+    }
+
+    public NullInspectorOptions getOptions() { return options; }
 }

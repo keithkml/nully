@@ -31,14 +31,31 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.annotations;
 
-public class NullReturnException extends IllegalStateException {
-    public NullReturnException() {
-        
+import net.kano.nully.annotations.NonNull;
+
+public final class NonNullTools {
+    private NonNullTools() { }
+
+    public static @NonNull <E> E checkNonNullParameter(E val, String paramName, int paramIndex) {
+        if (val == null) {
+            throw new NullParameterException(paramName, paramIndex);
+        }
+        return val;
+    }
+    
+    public static @NonNull <E> E checkNonNullReturn(E val) {
+        if (val == null) {
+            throw new NullReturnException();
+        }
+        return val;
     }
 
-    public NullReturnException(String s) {
-        super(s);
+    public static @NonNull <E> E checkNonNullValue(E val) {
+        if (val == null) {
+            throw new UnexpectedNullValueException();
+        }
+        return val;
     }
 }

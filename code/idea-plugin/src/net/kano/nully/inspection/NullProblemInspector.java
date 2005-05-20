@@ -31,43 +31,88 @@
  *
  */
 
-package net.kano.nully.inspection;
+package net.kano.nully.plugin.inspection;
 
 import com.intellij.codeInspection.InspectionManager;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
 import static com.intellij.codeInspection.ProblemHighlightType.GENERIC_ERROR_OR_WARNING;
+import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.util.InvalidDataException;
+import com.intellij.openapi.util.WriteExternalException;
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiExpression;
+import com.intellij.psi.PsiField;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiMethod;
+import com.intellij.psi.PsiMethodCallExpression;
+import com.intellij.psi.PsiReferenceExpression;
 import com.intellij.psi.PsiVariable;
-import net.kano.nully.NonNull;
-import net.kano.nully.NullyTools;
-import net.kano.nully.analysis.AnalysisContext;
-import net.kano.nully.analysis.nulls.CodeAnalyzer;
-import net.kano.nully.analysis.nulls.NullValueProblemFinder;
-import net.kano.nully.analysis.nulls.NullProblemType;
-import static net.kano.nully.analysis.nulls.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
-import static net.kano.nully.analysis.nulls.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
-import static net.kano.nully.analysis.nulls.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
-import net.kano.nully.analysis.nulls.NullValueProblem;
-import net.kano.nully.analysis.nulls.psipreprocess.PreparerForSoot;
+import net.kano.nully.annotations.NonNull;
+import net.kano.nully.plugin.NullyTools;
+import net.kano.nully.plugin.PsiTools;
+import net.kano.nully.plugin.ReferencedElementInfo;
+import net.kano.nully.plugin.SootTools;
+import net.kano.nully.plugin.analysis.AnalysisContext;
+import net.kano.nully.plugin.analysis.NullAnalysisProblemFinder;
+import net.kano.nully.plugin.analysis.nulls.CodeAnalyzer;
+import net.kano.nully.plugin.analysis.nulls.NullProblem;
+import net.kano.nully.plugin.analysis.nulls.NullProblemType;
+import static net.kano.nully.plugin.analysis.nulls.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
+import static net.kano.nully.plugin.analysis.nulls.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
+import static net.kano.nully.plugin.analysis.nulls.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
+import net.kano.nully.plugin.analysis.nulls.NullValueProblem;
+import net.kano.nully.plugin.analysis.nulls.NullableProblem;
+import net.kano.nully.plugin.analysis.nulls.psipreprocess.PreparerForSoot;
+import org.jdom.DataConversionException;
+import org.jdom.Element;
 
+import javax.swing.JComponent;
 import java.util.EnumSet;
 import java.util.List;
 
 public class NullProblemInspector
-        extends ProblemFinderBasedInspector<NullValueProblemFinder, NullValueProblem> {
+        extends ProblemFinderBasedInspector<NullAnalysisProblemFinder, NullProblem> {
+    private static final Logger LOGGER = Logger.getInstance(NullProblemInspector.class.getName());
+
+    //TOLATER: make more generic soot tag -> psi userdata system
+
+    private NullInspectorOptions options = new NullInspectorOptions();
+    private static final String PROP_ONLY_NULLABLE = "onlyNullable";
+    private static final String EL_NULL_OPTIONS = "nullOptions";
+
     public String getDisplayName() {
         return "Possibly null value in @" + NonNull.class.getSimpleName() + " context";
+    }
+
+    public void readSettings(Element element) throws InvalidDataException {
+        Element optel = element.getChild(EL_NULL_OPTIONS);
+        if (optel == null) return;
+        
+        try {
+            options.setOnlyNullable(optel.getAttribute(PROP_ONLY_NULLABLE).getBooleanValue());
+        } catch (DataConversionException e) {
+            LOGGER.error(e);
+            throw new InvalidDataException();
+        }
+    }
+
+    public void writeSettings(Element element) throws WriteExternalException {
+        Element optel = new Element(EL_NULL_OPTIONS);
+        optel.setAttribute(PROP_ONLY_NULLABLE, Boolean.toString(options.isOnlyNullable()));
+        element.addContent(optel);
+    }
+
+    public JComponent createOptionsPanel() {
+        return new NullInspectorOptionsPanel(options);
     }
 
     public String getShortName() {
         return "NullyNullProblemCheck";
     }
 
-    protected NullValueProblemFinder getFinderInstance() {
-        return new NullValueProblemFinder();
+    protected NullAnalysisProblemFinder getFinderInstance() {
+        return new NullAnalysisProblemFinder();
     }
 
     protected EnumSet<InspectionType> getInspectionTypes() {
@@ -76,48 +121,113 @@ public class NullProblemInspector
 
     protected void prepareContextForFile(AnalysisContext context,
             PsiJavaFile jfile) {
+        context.setOptions(options);
+
         PreparerForSoot preparer = new PreparerForSoot(context);
         context.setPreparer(preparer);
         preparer.prepareForFileAnalysis(jfile);
 
+        SootTools.lockSootGlobally();
         CodeAnalyzer analyzer = new CodeAnalyzer();
         context.setAnalyzer(analyzer);
         analyzer.analyze(context);
     }
 
     protected void cleanUp(AnalysisContext context) {
-        CodeAnalyzer analyzer = context.getAnalyzer();
-        if (analyzer != null) analyzer.resetSoot();
-        PreparerForSoot preparer = context.getPreparer();
-        if (preparer != null) preparer.removeCopy(context.getFileOrig());
+        try {
+            CodeAnalyzer analyzer = context.getAnalyzer();
+            if (analyzer != null) analyzer.resetSoot();
+
+            PreparerForSoot preparer = context.getPreparer();
+            if (preparer != null) preparer.removeCopy(context.getFileOrig());
+        } finally {
+            SootTools.unlockSootGlobally();
+        }
+
     }
 
-    protected void addProblems(InspectionManager manager,
-            List<ProblemDescriptor> problems, NullValueProblem problem) {
+    protected void addProblems(AnalysisContext context,
+            InspectionManager manager,
+            List<ProblemDescriptor> problems, NullProblem problem) {
         PsiElement element = problem.getElement();
-        NullProblemType type = problem.getType();
-        LocalQuickFix fix = null;
-
         String desc = null;
-        if (type == NULL_ARGUMENT_FOR_NONNULL_PARAMETER) {
-            PsiMethod method = NullyTools.getCalledMethod(element);
-            desc = "<HTML>Argument passed to <B>" + method.getName()
-                    + "()</B> may be illegally null";
+        LocalQuickFix fix = null;
+        boolean onlyNullable = context.getOptions().isOnlyNullable();
+        if (problem instanceof NullValueProblem) {
+            NullValueProblem nvProblem = (NullValueProblem) problem;
 
-        } else if (type == NULL_ASSIGNMENT_TO_NONNULL_VARIABLE) {
-            PsiVariable var = NullyTools.getAssignedVariable(element);
-            desc = "<HTML>Value assigned to <B>" + var.getName()
-                                + "</B> may be illegally null";
+            boolean block = false;
+            if (onlyNullable) {
+                ReferencedElementInfo refInfo = NullyTools.getReferenceInfo(nvProblem.getElement());
+                if (refInfo != null) {
+                    if (!NullyTools.hasValidNullableAnnotation(refInfo.getReferenced())) {
+                        block = true;
+                    }
+                }
+            }
+            if (!block) {
+                NullProblemType type = nvProblem.getType();
 
-        } else if (type == NULL_RETURN_IN_NONNULL_METHOD) {
-            desc = "Returned value may be ilegally null";
+                if (type == NULL_ARGUMENT_FOR_NONNULL_PARAMETER) {
+                    PsiMethod method = PsiTools.getCalledMethod(element);
+                    desc = "<HTML>Argument passed to <B>" + method.getName()
+                            + "()</B> may be illegally null";
 
+                } else if (type == NULL_ASSIGNMENT_TO_NONNULL_VARIABLE) {
+                    PsiVariable var = PsiTools.getAssignedVariable(element);
+                    desc = "<HTML>Value assigned to <B>" + var.getName()
+                                        + "</B> may be illegally null";
+
+                } else if (type == NULL_RETURN_IN_NONNULL_METHOD) {
+                    desc = "Returned value may be ilegally null";
+                }
+            }
+
+        } else if (problem instanceof NullableProblem) {
+            NullableProblem nullableProblem = (NullableProblem) problem;
+            PsiExpression ref = nullableProblem.getReferenceExpression();
+            String problemDesc = getRefProblemDescription(ref);
+            String useDesc = getUseDescription(element);
+            desc = problemDesc + "; " + useDesc + " may produce NullPointerException";
         }
 
         if (desc != null) {
             problems.add(manager.createProblemDescriptor(element, desc, fix,
                     GENERIC_ERROR_OR_WARNING));
         }
+    }
+
+    private String getRefProblemDescription(PsiExpression ref) {
+        String problemDesc = "Value may be null";
+        if (ref instanceof PsiMethodCallExpression) {
+            PsiMethodCallExpression call = (PsiMethodCallExpression) ref;
+            problemDesc = "<B>" + call.resolveMethod().getName() + "()</B> may return null";
+
+        } else if (ref instanceof PsiReferenceExpression) {
+            PsiReferenceExpression refExp = (PsiReferenceExpression) ref;
+            PsiElement resolved = refExp.resolve();
+            if (resolved instanceof PsiVariable) {
+                PsiVariable var = (PsiVariable) resolved;
+                problemDesc = "Value of <B>" + var.getName() + "</B> may be null";
+            }
+        }
+        return problemDesc;
+    }
+
+    private String getUseDescription(PsiElement use) {
+        String useDesc = "use";
+        if (use instanceof PsiMethodCallExpression) {
+            PsiMethodCallExpression exp = (PsiMethodCallExpression) use;
+            useDesc = "<B>" + exp.resolveMethod().getName() + "()</B> call";
+        } else if (use instanceof PsiReferenceExpression) {
+            PsiReferenceExpression refExp = (PsiReferenceExpression) use;
+            PsiElement referenced = refExp.resolve();
+            if (referenced instanceof PsiField) {
+                PsiField field = (PsiField) referenced;
+                useDesc = "<B>" + field.getName() + "</B> reference";
+            }
+        }
+        return useDesc;
     }
 /*
     public ProblemDescriptor[] checkClass(PsiClass aClass,

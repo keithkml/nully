@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2004, Keith Lea
+ *  Copyright (c) 2005, Keith Lea
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -31,21 +31,18 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.annotations;
 
-import java.lang.annotation.Documented;
-import static java.lang.annotation.ElementType.LOCAL_VARIABLE;
+import static java.lang.annotation.ElementType.CONSTRUCTOR;
 import static java.lang.annotation.ElementType.METHOD;
-import static java.lang.annotation.ElementType.PARAMETER;
+import static java.lang.annotation.ElementType.PACKAGE;
+import static java.lang.annotation.ElementType.TYPE;
 import java.lang.annotation.Retention;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 import java.lang.annotation.Target;
 
-@Documented
 @Retention(RUNTIME)
-@Target({PARAMETER, LOCAL_VARIABLE, METHOD})
-public @interface NonNull {
-//    enum CheckedState { CHECKED, UNCHECKED }
-//
-//    CheckedState checked() default CheckedState.CHECKED;
+@Target({CONSTRUCTOR, METHOD, TYPE, PACKAGE})
+public @interface SuppressNullChecks {
+    NullCheckLevel[] value() default NullCheckLevel.ALL;
 }

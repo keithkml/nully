@@ -8,12 +8,12 @@
 
   <application-components>
     <component>
-      <implementation-class>net.kano.nully.NullyApplicationComponent</implementation-class>
+      <implementation-class>net.kano.nully.plugin.NullyApplicationComponent</implementation-class>
     </component>
   </application-components>
   <project-components>
     <component>
-      <implementation-class>net.kano.nully.NullyProjectComponent</implementation-class>
+      <implementation-class>net.kano.nully.plugin.NullyProjectComponent</implementation-class>
     </component>
   </project-components>
 </idea-plugin>

@@ -31,6 +31,18 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.annotations;
 
-public enum NullCheckLevel { EDITOR, COMPILER, RUNTIME, ALL }
+import java.lang.annotation.Documented;
+import static java.lang.annotation.ElementType.LOCAL_VARIABLE;
+import static java.lang.annotation.ElementType.METHOD;
+import static java.lang.annotation.ElementType.PARAMETER;
+import java.lang.annotation.Retention;
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
+import java.lang.annotation.Target;
+
+@Documented
+@Retention(RUNTIME)
+@Target({PARAMETER, LOCAL_VARIABLE, METHOD})
+public @interface Nullable {
+}

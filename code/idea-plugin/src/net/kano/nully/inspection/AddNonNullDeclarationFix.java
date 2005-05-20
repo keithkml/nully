@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.inspection;
+package net.kano.nully.plugin.inspection;
 
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
@@ -42,7 +42,7 @@ import com.intellij.psi.PsiElementFactory;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.util.IncorrectOperationException;
-import net.kano.nully.NonNull;
+import net.kano.nully.annotations.NonNull;
 
 public class AddNonNullDeclarationFix implements LocalQuickFix {
     public String getName() {

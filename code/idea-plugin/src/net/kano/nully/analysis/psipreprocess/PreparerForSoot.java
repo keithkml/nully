@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.analysis.nulls.psipreprocess;
+package net.kano.nully.plugin.analysis.nulls.psipreprocess;
 
 import com.intellij.degenerator.CastingVisitor;
 import com.intellij.degenerator.ModifyingVisitor;
@@ -47,9 +47,9 @@ import com.intellij.psi.PsiStatement;
 import com.intellij.psi.PsiErrorElement;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
-import net.kano.nully.NonNull;
-import net.kano.nully.NullyTools;
-import net.kano.nully.analysis.AnalysisContext;
+import net.kano.nully.annotations.NonNull;
+import net.kano.nully.plugin.PsiTools;
+import net.kano.nully.plugin.analysis.AnalysisContext;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -143,7 +143,7 @@ public class PreparerForSoot {
      */
     public @NonNull PsiJavaFile makeMarkedCopy(@NonNull PsiJavaFile jfile) {
         context.setFileOrig(jfile);
-        PsiJavaFile fileCopy = NullyTools.getMarkedCopy(jfile,
+        PsiJavaFile fileCopy = PsiTools.getMarkedCopy(jfile,
                 context.getOriginalKey(), context.getCopyKey());
         context.setFileCopy(fileCopy);
         return fileCopy;

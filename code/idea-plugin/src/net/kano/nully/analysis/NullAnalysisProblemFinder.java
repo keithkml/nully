@@ -31,14 +31,28 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.plugin.analysis;
 
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
-import java.lang.annotation.ElementType;
+import net.kano.nully.plugin.analysis.nulls.NullProblem;
+import net.kano.nully.plugin.analysis.nulls.NullValueProblemFinder;
+import net.kano.nully.plugin.analysis.nulls.NullableProblemFinder;
 
-@Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.TYPE)
-public @interface NullyInstrumented {
+import java.util.ArrayList;
+import java.util.Collection;
+
+/**
+ * Created by IntelliJ IDEA. User: keithkml Date: May 19, 2005 Time: 12:57:03 PM
+ * To change this template use File | Settings | File Templates.
+ */
+public class NullAnalysisProblemFinder implements ProblemFinder<NullProblem> {
+    public Collection<NullProblem> findProblems(AnalysisContext context) {
+        Collection<NullProblem> problems = new ArrayList<NullProblem>();
+        NullValueProblemFinder nonnullf = new NullValueProblemFinder();
+        problems.addAll(nonnullf.findProblems(context));
+
+        NullableProblemFinder nullablef = new NullableProblemFinder();
+        problems.addAll(nullablef.findProblems(context));
+
+        return problems;
+    }
 }

@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.analysis.nulls;
+package net.kano.nully.plugin.analysis.nulls;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.psi.PsiAssignmentExpression;
@@ -47,15 +47,16 @@ import com.intellij.psi.PsiParameter;
 import com.intellij.psi.PsiReturnStatement;
 import com.intellij.psi.PsiVariable;
 import com.intellij.psi.util.PsiTreeUtil;
-import net.kano.nully.NonNull;
-import net.kano.nully.NullyTools;
-import net.kano.nully.OffsetsTracker;
-import net.kano.nully.SootTools;
-import net.kano.nully.analysis.AnalysisContext;
-import net.kano.nully.analysis.ProblemFinder;
-import static net.kano.nully.analysis.nulls.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
-import static net.kano.nully.analysis.nulls.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
-import static net.kano.nully.analysis.nulls.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
+import net.kano.nully.annotations.NonNull;
+import net.kano.nully.plugin.NullyTools;
+import net.kano.nully.plugin.OffsetsTracker;
+import net.kano.nully.plugin.PsiTools;
+import net.kano.nully.plugin.SootTools;
+import net.kano.nully.plugin.analysis.AnalysisContext;
+import net.kano.nully.plugin.analysis.ProblemFinder;
+import static net.kano.nully.plugin.analysis.nulls.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
+import static net.kano.nully.plugin.analysis.nulls.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
+import static net.kano.nully.plugin.analysis.nulls.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
 import soot.Body;
 import soot.SootMethod;
 import soot.Unit;
@@ -117,6 +118,7 @@ public class NullValueProblemFinder implements ProblemFinder<NullValueProblem> {
 
             } else if (unit instanceof InvokeStmt) {
                 InvokeStmt invokeStmt = (InvokeStmt) unit;
+                
                 findNullArgs(invokeStmt);
             }
         }
@@ -181,7 +183,7 @@ public class NullValueProblemFinder implements ProblemFinder<NullValueProblem> {
 
             PsiExpression initializer = var.getInitializer();
             if (initializer == null) return;
-            call = NullyTools.getMethodCallChild(initializer);
+            call = PsiTools.getMethodCallChild(initializer);
         }
         if (call == null) return;
 
@@ -216,7 +218,7 @@ public class NullValueProblemFinder implements ProblemFinder<NullValueProblem> {
         }
     }
 
-    private static synchronized PsiElement findArgumentElementParent(
+    private static PsiElement findArgumentElementParent(
             @NonNull PsiMethodCallExpression call,
             @NonNull PsiElement argel) {
         for (;;) {
@@ -248,7 +250,7 @@ public class NullValueProblemFinder implements ProblemFinder<NullValueProblem> {
         OffsetsTracker tracker = context.getTracker();
         int offset = SootTools.getOffset(tracker, srcTag);
         PsiElement leftEl = fileCopy.findElementAt(offset);
-        PsiVariable variable = NullyTools.getReferencedVariable(leftEl);
+        PsiVariable variable = PsiTools.getReferencedVariable(leftEl);
         if (variable == null) return;
         PsiVariable origVariable = context.getOriginalElement(variable);
         if (!NullyTools.hasNonNullAnnotation(origVariable)) return;

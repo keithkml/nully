@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.analysis.nulls.soot;
+package net.kano.nully.plugin.analysis.nulls.soot;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.psi.PsiElement;
@@ -44,13 +44,14 @@ import com.intellij.psi.PsiParameterList;
 import com.intellij.psi.PsiVariable;
 import com.intellij.psi.PsiMember;
 import com.intellij.psi.util.PsiTreeUtil;
-import net.kano.nully.NonNull;
-import net.kano.nully.NullParameterException;
-import net.kano.nully.NullyTools;
-import net.kano.nully.OffsetsTracker;
-import net.kano.nully.UnexpectedNullValueException;
-import net.kano.nully.SootTools;
-import net.kano.nully.analysis.AnalysisContext;
+import net.kano.nully.annotations.NonNull;
+import net.kano.nully.annotations.NullParameterException;
+import net.kano.nully.plugin.NullyTools;
+import net.kano.nully.plugin.OffsetsTracker;
+import net.kano.nully.annotations.UnexpectedNullValueException;
+import net.kano.nully.plugin.SootTools;
+import net.kano.nully.plugin.PsiTools;
+import net.kano.nully.plugin.analysis.AnalysisContext;
 import soot.Body;
 import soot.IntType;
 import soot.Local;
@@ -418,7 +419,7 @@ public class JimpleMethodPreprocessor {
 
     /**
      * Adds a null check for the given assignment where null values result in
-     * thrown {@link net.kano.nully.UnexpectedNullValueException}s, if a null
+     * thrown {@link net.kano.nully.annotations.UnexpectedNullValueException}s, if a null
      * check is necessary based on nullness annotations.
      *
      * @param body a method body
@@ -445,7 +446,7 @@ public class JimpleMethodPreprocessor {
         OffsetsTracker tracker = context.getTracker();
         PsiJavaFile fileCopy = context.getFileCopy();
         PsiElement varEl = tracker.getElementAtPosition(fileCopy, varSrcTag);
-        PsiVariable varCopy = NullyTools.getReferencedVariable(varEl);
+        PsiVariable varCopy = PsiTools.getReferencedVariable(varEl);
         return context.getOriginalElement(varCopy);
     }
 
@@ -481,7 +482,7 @@ public class JimpleMethodPreprocessor {
 
             if (initializer == null) return null;
 
-            call = NullyTools.getMethodCallChild(initializer);
+            call = PsiTools.getMethodCallChild(initializer);
         }
         return call;
     }

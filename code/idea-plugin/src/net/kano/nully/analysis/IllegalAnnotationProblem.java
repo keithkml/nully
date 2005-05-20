@@ -31,10 +31,10 @@
  *
  */
 
-package net.kano.nully.analysis;
+package net.kano.nully.plugin.analysis;
 
 import com.intellij.psi.PsiAnnotation;
-import net.kano.nully.NonNull;
+import net.kano.nully.annotations.NonNull;
 
 public abstract class IllegalAnnotationProblem extends NullyProblem<PsiAnnotation> {
     public IllegalAnnotationProblem(@NonNull PsiAnnotation element) {

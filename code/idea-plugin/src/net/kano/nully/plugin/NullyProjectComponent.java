@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2005, Keith Lea
+ *  Copyright (c) 2004, Keith Lea
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -31,20 +31,41 @@
  *
  */
 
-package net.kano.nully.plugin.analysis.nulls;
+package net.kano.nully.plugin;
 
-import com.intellij.psi.PsiElement;
-import net.kano.nully.annotations.NonNull;
+import com.intellij.openapi.compiler.CompilerManager;
+import com.intellij.openapi.components.ProjectComponent;
+import com.intellij.openapi.project.Project;
+import net.kano.nully.plugin.compilation.NullyCompilerStep;
 
-public class NullValueProblem extends NullProblem {
-    //TOLATER: quick fix for nonnull parameter value in nonnull context should be to nonnull the param
-    private final NullProblemType type;
+public class NullyProjectComponent implements ProjectComponent {
+    private Project project;
+    private CompilerManager compilerManager;
+    private NullyCompilerStep nullChecker;
 
-    public NullValueProblem(@NonNull PsiElement element,
-            @NonNull NullProblemType type) {
-        super(element);
-        this.type = type;
+    public NullyProjectComponent(Project project) {
+        this.project = project;
     }
 
-    public @NonNull NullProblemType getType() { return type; }
+    public void projectOpened() {
+        compilerManager = CompilerManager.getInstance(project);
+        nullChecker = new NullyCompilerStep(project);
+        compilerManager.addCompiler(nullChecker);
+    }
+
+    public void projectClosed() {
+        compilerManager.removeCompiler(nullChecker);
+    }
+
+    public String getComponentName() {
+        return "Nully";
+    }
+
+    public void initComponent() {
+
+    }
+
+    public void disposeComponent() {
+
+    }
 }

@@ -31,21 +31,21 @@
  *
  */
 
-package net.kano.nully;
+package net.kano.nully.annotations;
 
-import java.util.Iterator;
+import java.lang.annotation.Documented;
+import static java.lang.annotation.ElementType.LOCAL_VARIABLE;
+import static java.lang.annotation.ElementType.METHOD;
+import static java.lang.annotation.ElementType.PARAMETER;
+import java.lang.annotation.Retention;
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
+import java.lang.annotation.Target;
 
-public class ParameterTester {
-    public void testParameter(@NonNull String notnull, String cannull) {
-    }
-
-    public static void main(String[] args) {
-        ParameterTester tester = new ParameterTester();
-        tester.testParameter(null, null);
-    }
-
-    void thing() {
-        Iterable<String> notes = null;
-        Iterator<String> it = notes.iterator();
-    }
+@Documented
+@Retention(RUNTIME)
+@Target({PARAMETER, LOCAL_VARIABLE, METHOD})
+public @interface NonNull {
+//    enum CheckedState { CHECKED, UNCHECKED }
+//
+//    CheckedState checked() default CheckedState.CHECKED;
 }

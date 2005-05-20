@@ -31,7 +31,7 @@
  *
  */
 
-package net.kano.nully.compilation;
+package net.kano.nully.plugin.compilation;
 
 import com.intellij.psi.PsiRecursiveElementVisitor;
 import com.intellij.psi.PsiMethodCallExpression;
@@ -41,9 +41,9 @@ import com.intellij.psi.PsiExpression;
 import com.intellij.psi.PsiElement;
 import com.intellij.util.IncorrectOperationException;
 import com.intellij.openapi.diagnostic.Logger;
-import net.kano.nully.NullyTools;
-import net.kano.nully.NonNull;
-import net.kano.nully.NullCheckLevel;
+import net.kano.nully.plugin.NullyTools;
+import net.kano.nully.annotations.NonNull;
+import net.kano.nully.annotations.NullCheckLevel;
 
 class NonNullMethodCallCheckInserter extends PsiRecursiveElementVisitor {
     private static final Logger LOGGER

@@ -31,11 +31,11 @@
  *
  */
 
-package net.kano.nully.analysis.nulls.soot;
+package net.kano.nully.plugin.analysis.nulls.soot;
 
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiFile;
-import net.kano.nully.NonNull;
+import net.kano.nully.annotations.NonNull;
 import polyglot.ast.Node;
 import polyglot.frontend.Compiler;
 import polyglot.frontend.ExtensionInfo;

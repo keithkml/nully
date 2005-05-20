@@ -1,6 +1,6 @@
-package net.kano.nully.analysis;
+package net.kano.nully.plugin.analysis;
 
-import net.kano.nully.NonNull;
+import net.kano.nully.annotations.NonNull;
 
 import java.util.Collection;
 
