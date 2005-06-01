@@ -57,18 +57,42 @@ import com.intellij.psi.util.PsiSuperMethodUtil;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
 import net.kano.nully.annotations.NonNull;
+import soot.Type;
+import soot.BooleanType;
+import soot.ByteType;
+import soot.DoubleType;
+import soot.FloatType;
+import soot.IntType;
+import soot.LongType;
+import soot.ShortType;
+import soot.VoidType;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
 public final class PsiTools {
     private static final Logger LOGGER = Logger.getInstance(PsiTools.class.getName());
+    private static Map<PsiType,Type> staticSootTypes = new HashMap<PsiType, Type>();
+    static {
+        PsiTools.staticSootTypes.put(PsiType.BOOLEAN, BooleanType.v());
+        PsiTools.staticSootTypes.put(PsiType.BYTE, ByteType.v());
+        PsiTools.staticSootTypes.put(PsiType.CHAR, BooleanType.v());
+        PsiTools.staticSootTypes.put(PsiType.DOUBLE, DoubleType.v());
+        PsiTools.staticSootTypes.put(PsiType.FLOAT, FloatType.v());
+        PsiTools.staticSootTypes.put(PsiType.INT, IntType.v());
+        PsiTools.staticSootTypes.put(PsiType.LONG, LongType.v());
+        PsiTools.staticSootTypes.put(PsiType.SHORT, ShortType.v());
+        PsiTools.staticSootTypes.put(PsiType.VOID, VoidType.v());
+    }
+
 
     private PsiTools() { }
 
@@ -284,6 +308,31 @@ public final class PsiTools {
         }
         return typeStr;
     }
+//
+//    public static Type getSootType(PsiType psiType) {
+//        Type out = staticSootTypes.get(psiType);
+//        if (out == null) {
+//            if (psiType instanceof PsiArrayType) {
+//                PsiArrayType type = (PsiArrayType) psiType;
+//                return ArrayType.v(getSootType(type.getComponentType()),
+//                        type.getArrayDimensions());
+//            } else if (psiType instanceof PsiClassType) {
+//                PsiClassType type = (PsiClassType) psiType;
+//                PsiClass resolved = type.resolve();
+//                String fqn;
+//                if (resolved == null) {
+//                    fqn = type.getClassName();
+//                } else {
+//                    fqn = resolved.getQualifiedName();
+//                }
+//                return RefType.v(fqn);
+//            } else {
+//                throw new IllegalArgumentException("Cannot convert to Soot type:"
+//                        + psiType);
+//            }
+//        }
+//        return out;
+//    }
 
     public static class MethodNameComparator implements Comparator<PsiMethod> {
         public int compare(PsiMethod method, PsiMethod method1) {
