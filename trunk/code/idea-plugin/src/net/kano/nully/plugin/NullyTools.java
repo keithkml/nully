@@ -9,7 +9,6 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiExpression;
 import com.intellij.psi.PsiField;
 import com.intellij.psi.PsiJavaCodeReferenceElement;
-import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiMember;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiMethodCallExpression;
@@ -28,10 +27,10 @@ import net.kano.nully.annotations.NullCheckLevel;
 import net.kano.nully.annotations.Nullable;
 import net.kano.nully.annotations.SuppressNullChecks;
 import net.kano.nully.plugin.analysis.AnalysisContext;
+import net.kano.nully.plugin.analysis.nulls.soot.MayBeNullTag;
 import soot.SootMethod;
 import soot.Unit;
 import soot.ValueBox;
-import soot.tagkit.SourceLnPosTag;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -51,11 +50,7 @@ public final class NullyTools {
     private NullyTools() { }
 
     public static PsiMember getPsiMemberCopy(AnalysisContext context, SootMethod method) {
-        OffsetsTracker tracker = context.getTracker();
-        PsiJavaFile fileCopy = context.getFileCopy();
-        SourceLnPosTag srcTag = SootTools.getSourceTag(method);
-        if (srcTag == null) return null;
-        PsiElement el = tracker.getElementAtPosition(fileCopy, srcTag);
+        PsiElement el = SootTools.getPsiElement(method);
         if (el == null) return null;
         return PsiTreeUtil.getParentOfType(el, PsiMember.class);
     }
@@ -127,19 +122,11 @@ public final class NullyTools {
         return getAnnnotation(member, SuppressNullChecks.class) != null;
     }
 
-    private static PsiAnnotation getAnnnotation(PsiModifierListOwner owner,
-            Class<?> cls) {
-        return owner.getModifierList().findAnnotation(cls.getName());
-    }
-
-    public static boolean shouldCheckNulls(@NonNull PsiMember member) {
-        if (hasSuppressNullChecksAnnotation(member)) return false;
-        PsiClass outer = member.getContainingClass();
-        if (outer == null) {
-            return true;
-        } else {
-            return shouldCheckNulls(outer);
-        }
+    private static PsiAnnotation getAnnnotation(@NonNull PsiModifierListOwner owner,
+            @NonNull Class<?> cls) {
+        PsiModifierList mods = owner.getModifierList();
+        if (mods == null) return null;
+        return mods.findAnnotation(cls.getName());
     }
 
     public static boolean shouldCheckNulls(PsiElement expression,
@@ -180,17 +167,18 @@ public final class NullyTools {
 
     public static @Nullable PossiblyNullReferenceInfo getPossiblyNullNullableReference(
             AnalysisContext context, Unit unit, ValueBox valueBox) {
-        if (!SootTools.hasMayBeNullTag(valueBox)) return null;
+        MayBeNullTag tag = SootTools.getMayBeNullTag(valueBox);
+        if (tag == null) return null;
 
-        ReferencedElementInfo refInfo = getReferenceInfo(context, valueBox);
+        ReferencedElementInfo refInfo = getReferenceInfo(valueBox);
         if (refInfo == null) return null;
 
-        return getPossiiblyNullReference(context, unit, refInfo);
+        return getPossiblyNullReference(context, unit, refInfo, tag);
 
     }
 
-    public static PossiblyNullReferenceInfo getPossiiblyNullReference(AnalysisContext context,
-            Unit unit, ReferencedElementInfo refInfo) {
+    private static PossiblyNullReferenceInfo getPossiblyNullReference(AnalysisContext context,
+            Unit unit, ReferencedElementInfo refInfo, MayBeNullTag tag) {
         PsiModifierListOwner referenced = refInfo.getReferenced();
         PsiModifierListOwner origReferenced = context.getOriginalElement(referenced);
         PsiExpression origBad = context.getOriginalElement(refInfo.getRefExpression());
@@ -198,24 +186,34 @@ public final class NullyTools {
 
         if (!hasValidNullableAnnotation(origReferenced)) return null;
 
-        SourceLnPosTag unitSrcTag = SootTools.getSourceTag(unit);
-        PsiElement highlight = context.getTracker()
-                .getElementAtPosition(context.getFileCopy(),
-                unitSrcTag);
+        PsiElement highlight = SootTools.getPsiElement(unit);
         if (highlight == null) highlight = referenced;
 
         PsiElement origHighlight = context.getOriginalElement(highlight);
 
-        return new PossiblyNullReferenceInfo(origBad, origHighlight);
+        return new PossiblyNullReferenceInfo(origBad, origHighlight, tag.isDefinitelyNull());
     }
 
-    public static @Nullable ReferencedElementInfo getReferenceInfo(
-            AnalysisContext context, ValueBox valueBox) {
-        SourceLnPosTag srcTag = SootTools.getSourceTag(valueBox);
-        if (srcTag == null) return null;
+    //TODO: rename
+    public static PossiblyNullReferenceInfo getReferenceInfo(AnalysisContext context,
+            Unit unit, ReferencedElementInfo refInfo, MayBeNullTag tag) {
+        PsiModifierListOwner referenced = refInfo.getReferenced();
+        PsiModifierListOwner origReferenced = context.getOriginalElement(referenced);
+        PsiExpression origBad = context.getOriginalElement(refInfo.getRefExpression());
+        if (origReferenced == null || origBad == null) return null;
 
-        PsiElement el = context.getTracker()
-                .getElementAtPosition(context.getFileCopy(), srcTag);
+        PsiElement highlight = SootTools.getPsiElement(unit);
+        if (highlight == null) highlight = referenced;
+
+        PsiElement origHighlight = context.getOriginalElement(highlight);
+
+        return new PossiblyNullReferenceInfo(origBad, origHighlight, tag.isDefinitelyNull());
+    }
+
+    public static @Nullable ReferencedElementInfo getReferenceInfo(ValueBox valueBox) {
+        PsiElement el = SootTools.getPsiElement(valueBox);
+        if (el == null) return null;
+
         ReferencedElementInfo refInfo = getReferenceInfo(el);
         if (refInfo == null) {
             LOGGER.debug("Element " + valueBox

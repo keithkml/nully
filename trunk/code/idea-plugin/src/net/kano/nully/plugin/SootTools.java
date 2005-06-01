@@ -1,6 +1,10 @@
 package net.kano.nully.plugin;
 
+import com.intellij.psi.PsiElement;
 import net.kano.nully.annotations.NonNull;
+import net.kano.nully.annotations.Nullable;
+import net.kano.nully.plugin.psiToJimple.PsiTag;
+import net.kano.nully.plugin.analysis.nulls.soot.MayBeNullTag;
 import soot.Local;
 import soot.Value;
 import soot.ValueBox;
@@ -20,10 +24,17 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class SootTools {
+    //TOLATER: highlight definitely null value in any context
     private static Lock sootLock = new ReentrantLock();
 
-    public static SourceLnPosTag getSourceTag(Host host) {
-        return (SourceLnPosTag) host.getTag("SourceLnPosTag");
+    public static @Nullable PsiElement getPsiElement(@NonNull Host host) {
+        PsiTag tag = ((PsiTag) host.getTag("PsiTag"));
+        if (tag == null) return null;
+        else return tag.getElement();
+    }
+
+    public static MayBeNullTag getMayBeNullTag(@NonNull Host host) {
+        return (MayBeNullTag) host.getTag("MayBeNull");
     }
 
     public static boolean hasMayBeNullTag(@NonNull Host host) {
@@ -61,7 +72,7 @@ public class SootTools {
         ValueBox obj = null;
 
         if (s.containsArrayRef()) {
-            ArrayRef aref = (ArrayRef) s.getArrayRef();
+            ArrayRef aref = s.getArrayRef();
             obj = aref.getBaseBox();
         } else {
             // Throw
@@ -123,8 +134,12 @@ public class SootTools {
     }
 
     public static void unlockSootGlobally() {
-        getSootLock().unlock();
+        try {
+            getSootLock().unlock();
+        } catch (IllegalMonitorStateException ignored) {
+        }
     }
 
     public static @NonNull Lock getSootLock() { return sootLock; }
+
 }

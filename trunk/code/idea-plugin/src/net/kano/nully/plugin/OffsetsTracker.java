@@ -93,8 +93,11 @@ public class OffsetsTracker {
         PsiElement last = fileCopy.findElementAt(eoff);
         PsiElement commonParent = PsiTreeUtil.findCommonParent(first, last);
 
-        if (commonParent != null) return commonParent;
-        else return first;
+        if (commonParent != null) {
+            return commonParent;
+        } else {
+            return first;
+        }
     }
 
     public int getLine(int off) {

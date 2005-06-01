@@ -31,31 +31,30 @@
  *
  */
 
-package net.kano.nully.plugin;
+package net.kano.nully.plugin.psiToJimple;
 
-import com.intellij.psi.PsiExpression;
-import com.intellij.psi.PsiElement;
-import net.kano.nully.annotations.NonNull;
+public class IdentityKey<K> {
+    private final K obj;
 
-/**
- * Created by IntelliJ IDEA. User: keithkml Date: May 19, 2005 Time: 3:50:17 PM
- * To change this template use File | Settings | File Templates.
- */
-public class PossiblyNullReferenceInfo {
-    private PsiExpression possiblyNullReference;
-    private PsiElement use;
-    private boolean definitelyNull;
-
-    public PossiblyNullReferenceInfo(@NonNull PsiExpression possiblyNullReference,
-            @NonNull PsiElement use, boolean definitelyNull) {
-        this.possiblyNullReference = possiblyNullReference;
-        this.use = use;
-        this.definitelyNull = definitelyNull;
+    public IdentityKey(K obj) {
+        this.obj = obj;
     }
 
-    public PsiExpression getPossiblyNullReference() { return possiblyNullReference; }
+    public K object() {
+        return obj;
+    }
 
-    public PsiElement getUse() { return use; }
+    public int hashCode() {
+        return System.identityHashCode(obj);
+    }
 
-    public boolean isDefinitelyNull() { return definitelyNull; }
+    public boolean equals(Object other) {
+        return other instanceof IdentityKey<?>
+            && ((IdentityKey<?>) other).obj == obj;
+    }
+
+    public String toString() {
+        return "Id(" + obj + ")";
+    }
 }
+

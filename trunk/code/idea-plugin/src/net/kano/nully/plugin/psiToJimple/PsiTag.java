@@ -31,31 +31,28 @@
  *
  */
 
-package net.kano.nully.plugin;
+package net.kano.nully.plugin.psiToJimple;
 
-import com.intellij.psi.PsiExpression;
+import soot.tagkit.Tag;
+import soot.tagkit.AttributeValueException;
 import com.intellij.psi.PsiElement;
-import net.kano.nully.annotations.NonNull;
 
-/**
- * Created by IntelliJ IDEA. User: keithkml Date: May 19, 2005 Time: 3:50:17 PM
- * To change this template use File | Settings | File Templates.
- */
-public class PossiblyNullReferenceInfo {
-    private PsiExpression possiblyNullReference;
-    private PsiElement use;
-    private boolean definitelyNull;
+public class PsiTag implements Tag {
+    private final PsiElement element;
 
-    public PossiblyNullReferenceInfo(@NonNull PsiExpression possiblyNullReference,
-            @NonNull PsiElement use, boolean definitelyNull) {
-        this.possiblyNullReference = possiblyNullReference;
-        this.use = use;
-        this.definitelyNull = definitelyNull;
+    public PsiTag(PsiElement element) {
+        this.element = element;
     }
 
-    public PsiExpression getPossiblyNullReference() { return possiblyNullReference; }
+    public PsiElement getElement() {
+        return element;
+    }
 
-    public PsiElement getUse() { return use; }
+    public String getName() {
+        return "PsiTag";
+    }
 
-    public boolean isDefinitelyNull() { return definitelyNull; }
+    public byte[] getValue() throws AttributeValueException {
+        throw new IllegalStateException("no value for PsiTag");
+    }
 }
