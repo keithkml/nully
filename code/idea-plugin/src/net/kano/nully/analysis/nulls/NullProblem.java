@@ -36,13 +36,26 @@ package net.kano.nully.plugin.analysis.nulls;
 import com.intellij.psi.PsiElement;
 import net.kano.nully.plugin.analysis.NullyProblem;
 import net.kano.nully.annotations.NonNull;
+import soot.ValueBox;
 
 /**
  * Created by IntelliJ IDEA. User: keithkml Date: May 19, 2005 Time: 1:05:53 PM
  * To change this template use File | Settings | File Templates.
  */
-public class NullProblem extends NullyProblem<PsiElement> {
-    public NullProblem(@NonNull PsiElement element) {
+public abstract class NullProblem extends NullyProblem<PsiElement> {
+    private final boolean definitelyNull;
+    private final ValueBox value;
+
+    public NullProblem(@NonNull PsiElement element, @NonNull ValueBox value, boolean definitelyNull) {
         super(element);
+        this.value = value;
+        this.definitelyNull = definitelyNull;
+    }
+
+    public boolean isDefinitelyNull() {
+        return definitelyNull;
+    }
+    public ValueBox getValue() {
+        return value;
     }
 }

@@ -36,7 +36,6 @@ package net.kano.nully.plugin.analysis.nulls.soot;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiExpression;
-import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiMethodCallExpression;
 import com.intellij.psi.PsiParameter;
@@ -47,7 +46,6 @@ import com.intellij.psi.util.PsiTreeUtil;
 import net.kano.nully.annotations.NonNull;
 import net.kano.nully.annotations.NullParameterException;
 import net.kano.nully.plugin.NullyTools;
-import net.kano.nully.plugin.OffsetsTracker;
 import net.kano.nully.annotations.UnexpectedNullValueException;
 import net.kano.nully.plugin.SootTools;
 import net.kano.nully.plugin.PsiTools;
@@ -76,7 +74,6 @@ import soot.jimple.ParameterRef;
 import soot.jimple.Stmt;
 import soot.jimple.StringConstant;
 import soot.jimple.ThrowStmt;
-import soot.tagkit.SourceLnPosTag;
 import soot.tagkit.Tag;
 import soot.util.Chain;
 
@@ -259,7 +256,7 @@ public class JimpleMethodPreprocessor {
             @NonNull DefinitionStmt assignStmt) {
         // find the source position of the assigned variable
         ValueBox varBox = assignStmt.getLeftOpBox();
-        SourceLnPosTag varSrcTag = SootTools.getSourceTag(varBox);
+        PsiElement varSrcTag = SootTools.getPsiElement(varBox);
         if (varSrcTag == null) return false;
 
         // find the PSI variable
@@ -442,10 +439,7 @@ public class JimpleMethodPreprocessor {
      * @param varSrcTag a source tag for an {@link AssignStmt}
      * @return the assigned variable, if any
      */
-    private PsiVariable getAssignedVariable(@NonNull SourceLnPosTag varSrcTag) {
-        OffsetsTracker tracker = context.getTracker();
-        PsiJavaFile fileCopy = context.getFileCopy();
-        PsiElement varEl = tracker.getElementAtPosition(fileCopy, varSrcTag);
+    private PsiVariable getAssignedVariable(@NonNull PsiElement varEl) {
         PsiVariable varCopy = PsiTools.getReferencedVariable(varEl);
         return context.getOriginalElement(varCopy);
     }
@@ -460,14 +454,10 @@ public class JimpleMethodPreprocessor {
     private PsiMethodCallExpression getMethodCallExpression(@NonNull DefinitionStmt assignStmt) {
         if (!(assignStmt.getRightOp() instanceof InvokeExpr)) return null;
 
-        // find the method call source tag
-        SourceLnPosTag tag = findAssignedValueTag(assignStmt);
-        if (tag == null) return null;
-
         // find the method call
-        PsiJavaFile fileCopy = context.getFileCopy();
-        OffsetsTracker tracker = context.getTracker();
-        PsiElement rightEl = tracker.getElementAtPosition(fileCopy, tag);
+        PsiElement rightEl = findAssignedValueTag(assignStmt);
+        if (rightEl == null) return null;
+
         PsiMethodCallExpression call = PsiTreeUtil.getParentOfType(rightEl,
                 PsiMethodCallExpression.class, false);
 
@@ -493,12 +483,12 @@ public class JimpleMethodPreprocessor {
      * @param assignStmt an assignment statement
      * @return the source line/column tag, if any
      */
-    private static SourceLnPosTag findAssignedValueTag(@NonNull DefinitionStmt assignStmt) {
+    private static PsiElement findAssignedValueTag(@NonNull DefinitionStmt assignStmt) {
         // figure out which source tag is the right one to read
-        SourceLnPosTag stmtSrcTag = SootTools.getSourceTag(assignStmt);
-        SourceLnPosTag valueSrcTag = SootTools.getSourceTag(assignStmt.getRightOpBox());
+        PsiElement stmtSrcTag = SootTools.getPsiElement(assignStmt);
+        PsiElement valueSrcTag = SootTools.getPsiElement(assignStmt.getRightOpBox());
 
-        SourceLnPosTag actualTag;
+        PsiElement actualTag;
         if (valueSrcTag != null) {
             actualTag = valueSrcTag;
         } else {

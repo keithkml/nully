@@ -35,14 +35,16 @@ package net.kano.nully.plugin.analysis.nulls;
 
 import com.intellij.psi.PsiElement;
 import net.kano.nully.annotations.NonNull;
+import soot.ValueBox;
 
 public class NullValueProblem extends NullProblem {
     //TOLATER: quick fix for nonnull parameter value in nonnull context should be to nonnull the param
     private final NullProblemType type;
 
     public NullValueProblem(@NonNull PsiElement element,
-            @NonNull NullProblemType type) {
-        super(element);
+            @NonNull NullProblemType type, @NonNull ValueBox value, boolean definitelyNull) {
+        super(element, value, definitelyNull);
+
         this.type = type;
     }
 

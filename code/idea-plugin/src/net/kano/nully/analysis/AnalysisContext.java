@@ -64,13 +64,13 @@ public class AnalysisContext {
     private EnumSet<NullCheckLevel> checkLevels = EnumSet.noneOf(NullCheckLevel.class);
     private NullInspectorOptions options = new NullInspectorOptions();
 
-    public OffsetsTracker getTracker() {
-        return tracker;
-    }
-
-    public void setTracker(OffsetsTracker tracker) {
-        this.tracker = tracker;
-    }
+//    public OffsetsTracker getTracker() {
+//        return tracker;
+//    }
+//
+//    public void setTracker(OffsetsTracker tracker) {
+//        this.tracker = tracker;
+//    }
 
     public PsiJavaFile getFileCopy() {
         return fileCopy;

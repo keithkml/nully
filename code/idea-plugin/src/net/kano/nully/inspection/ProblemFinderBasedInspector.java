@@ -41,14 +41,14 @@ import com.intellij.psi.PsiField;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiMethod;
+import net.kano.nully.annotations.NullCheckLevel;
 import net.kano.nully.plugin.analysis.AnalysisContext;
 import net.kano.nully.plugin.analysis.NullyProblem;
 import net.kano.nully.plugin.analysis.ProblemFinder;
-import net.kano.nully.annotations.NullCheckLevel;
 
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 public abstract class ProblemFinderBasedInspector<F extends ProblemFinder<P>,
         P extends NullyProblem<?>>
@@ -57,7 +57,7 @@ public abstract class ProblemFinderBasedInspector<F extends ProblemFinder<P>,
             = Logger.getInstance(IllegalOverrideInspector.class.getName());
 
     protected abstract F getFinderInstance();
-    protected abstract EnumSet<InspectionType> getInspectionTypes();
+    protected abstract Set<InspectionType> getInspectionTypes();
 
     private static PsiJavaFile getParentJavaFile(PsiElement el) {
         PsiFile container = el.getContainingFile();
@@ -75,8 +75,9 @@ public abstract class ProblemFinderBasedInspector<F extends ProblemFinder<P>,
         if (!(file instanceof PsiJavaFile)) return null;
         if (!getInspectionTypes().contains(InspectionType.FILE)) return null;
 
-        AnalysisContext context = createAnalysisContext();
         PsiJavaFile jfile = (PsiJavaFile) file;
+
+        AnalysisContext context = createAnalysisContext();
         try {
             prepareContextForFile(context, jfile);
 

@@ -5,6 +5,7 @@ import net.kano.nully.annotations.NonNull;
 import net.kano.nully.annotations.Nullable;
 import net.kano.nully.plugin.psiToJimple.PsiTag;
 import net.kano.nully.plugin.analysis.nulls.soot.MayBeNullTag;
+import net.kano.nully.plugin.analysis.nulls.NullableTag;
 import soot.Local;
 import soot.Value;
 import soot.ValueBox;
@@ -68,7 +69,7 @@ public class SootTools {
         throw new IllegalStateException("could not find name. locals: " + locals);
     }
 
-    public static ValueBox getReferencedObject(Stmt s) {
+    public static ValueBox getDereferencedObject(Stmt s) {
         ValueBox obj = null;
 
         if (s.containsArrayRef()) {
@@ -142,4 +143,11 @@ public class SootTools {
 
     public static @NonNull Lock getSootLock() { return sootLock; }
 
+    public static NullableTag getNullableTag(@NonNull ValueBox box) {
+        return (NullableTag) box.getTag("NullableTag");
+    }
+
+    public static boolean hasNullableTag(@NonNull ValueBox value) {
+        return getNullableTag(value) != null;
+    }
 }

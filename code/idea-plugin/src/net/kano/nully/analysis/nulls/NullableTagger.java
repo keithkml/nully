@@ -31,40 +31,37 @@
  *
  */
 
-package net.kano.nully.plugin.inspection;
+package net.kano.nully.plugin.analysis.nulls;
 
-import com.intellij.codeInspection.InspectionManager;
-import com.intellij.codeInspection.ProblemDescriptor;
-import net.kano.nully.annotations.NullyInstrumented;
-import net.kano.nully.plugin.analysis.NullyInstrumentedFinder;
-import net.kano.nully.plugin.analysis.NullyInstrumentedProblem;
 import net.kano.nully.plugin.analysis.AnalysisContext;
+import net.kano.nully.annotations.NonNull;
+import soot.Body;
+import soot.BodyTransformer;
+import soot.ValueBox;
+import soot.jimple.Stmt;
+import soot.toolkits.graph.ExceptionalUnitGraph;
+import soot.toolkits.scalar.FlowSet;
 
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Set;
+import java.util.Collection;
+import java.util.Map;
 
-public class NullyInstrumentedInspector extends ProblemFinderBasedInspector<NullyInstrumentedFinder, NullyInstrumentedProblem> {
-    protected NullyInstrumentedFinder getFinderInstance() {
-        return new NullyInstrumentedFinder();
+public class NullableTagger extends BodyTransformer {
+    private final AnalysisContext context;
+
+    public NullableTagger(@NonNull AnalysisContext context) {
+        this.context = context;
     }
 
-    protected Set<InspectionType> getInspectionTypes() {
-        return EnumSet.of(InspectionType.FILE);
-    }
-
-    protected void addProblems(AnalysisContext context,
-            InspectionManager manager,
-            List<ProblemDescriptor> problems,
-            NullyInstrumentedProblem problem) {
-    }
-
-    public String getDisplayName() {
-        return "Illegal @" + NullyInstrumented.class.getSimpleName()
-                + " annotation";
-    }
-
-    public String getShortName() {
-        return "NullyInstrumented";
+    protected void internalTransform(Body b, String phaseName, Map options) {
+        NullableAnalysis anal = new NullableAnalysis(context, new ExceptionalUnitGraph(b));
+        for (Stmt stmt : (Collection<Stmt>)b.getUnits()) {
+            for (ValueBox valueBox : ((Collection<ValueBox>) stmt.getUseBoxes())) {
+                FlowSet flow = (FlowSet) anal.getFlowBefore(stmt);
+                int nullableInfo = anal.refInfo(valueBox.getValue(), flow);
+                if (nullableInfo == NullableAnalysis.K_NULLABLE) {
+                    valueBox.addTag(new NullableTag());
+                }
+            }
+        }
     }
 }

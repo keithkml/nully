@@ -33,116 +33,49 @@
 
 package net.kano.nully.plugin.analysis.nulls;
 
-import com.intellij.psi.PsiArrayType;
 import com.intellij.psi.PsiClass;
-import com.intellij.psi.PsiClassType;
-import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiJavaFile;
-import com.intellij.psi.PsiType;
-import com.intellij.psi.PsiVariable;
-import com.intellij.psi.codeStyle.CodeStyleManager;
-import com.intellij.util.IncorrectOperationException;
+import com.intellij.psi.PsiManager;
+import com.intellij.psi.PsiRecursiveElementVisitor;
+import com.intellij.psi.PsiAnonymousClass;
+import com.intellij.psi.util.PsiUtil;
 import net.kano.nully.annotations.NonNullTools;
 import net.kano.nully.annotations.NullParameterException;
 import net.kano.nully.annotations.NullReturnException;
-import net.kano.nully.plugin.OffsetsTracker;
 import net.kano.nully.annotations.UnexpectedNullValueException;
-import net.kano.nully.annotations.NonNull;
-import net.kano.nully.annotations.Nullable;
-import net.kano.nully.plugin.SootTools;
 import net.kano.nully.plugin.PsiTools;
+import net.kano.nully.plugin.analysis.AnalysisContext;
 import net.kano.nully.plugin.analysis.nulls.soot.JimpleMethodPreprocessor;
 import net.kano.nully.plugin.analysis.nulls.soot.NullPointerTagger;
-import net.kano.nully.plugin.analysis.nulls.soot.PsiJavaFileClassProvider;
-import net.kano.nully.plugin.analysis.AnalysisContext;
-import soot.ArrayType;
+import net.kano.nully.plugin.psiToJimple.InitialResolver;
+import net.kano.nully.plugin.psiToJimple.Util;
 import soot.Body;
-import soot.BooleanType;
-import soot.ByteType;
-import soot.DoubleType;
-import soot.FloatType;
-import soot.IntType;
-import soot.Local;
-import soot.LongType;
-import soot.RefType;
+import soot.ClassProvider;
+import soot.ClassSource;
 import soot.Scene;
-import soot.ShortType;
 import soot.SootClass;
 import soot.SootMethod;
 import soot.SootResolver;
 import soot.SourceLocator;
 import soot.Type;
-import soot.Unit;
-import soot.VoidType;
-import soot.ValueBox;
-import soot.util.Chain;
-import soot.javaToJimple.InitialResolver;
-import soot.jimple.internal.JAssignStmt;
-import soot.jimple.internal.JInvokeStmt;
-import soot.jimple.internal.JimpleLocal;
-import soot.jimple.toolkits.scalar.ConstantPropagatorAndFolder;
-import soot.jimple.InvokeExpr;
 import soot.options.Options;
-import soot.tagkit.SourceLnPosTag;
-import soot.tagkit.Tag;
 
-import java.io.IOException;
-import java.io.StringReader;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class CodeAnalyzer {
-    //TODO: lock while using soot
     //TOLATER: show definitely nulls even if not Nullable
-    //TODO: test nullable option
-    //TODO: run inspections in writeAction
     //TOLATER: allow specification of nonnull param schemas for classes (Collection.add, etc)
     private AnalysisContext context;
-
-    private Map<PsiType,Type> staticSootTypes = new HashMap<PsiType, Type>();
-    {
-        staticSootTypes.put(PsiType.BOOLEAN, BooleanType.v());
-        staticSootTypes.put(PsiType.BYTE, ByteType.v());
-        staticSootTypes.put(PsiType.CHAR, BooleanType.v());
-        staticSootTypes.put(PsiType.DOUBLE, DoubleType.v());
-        staticSootTypes.put(PsiType.FLOAT, FloatType.v());
-        staticSootTypes.put(PsiType.INT, IntType.v());
-        staticSootTypes.put(PsiType.LONG, LongType.v());
-        staticSootTypes.put(PsiType.SHORT, ShortType.v());
-        staticSootTypes.put(PsiType.VOID, VoidType.v());
-    }
+    private PsiClassProvider provider;
 
     public void analyze(AnalysisContext context) {
         this.context = context;
 
-//        NonnullChecker checker = new NonnullChecker(false);
-//        psiFile.accept(checker);
-//
-//        if (!checker.shouldProcess()) return false;
-
-        PsiJavaFile fileCopy = context.getFileCopy();
-        try {
-            // avoid unnecessarily referencing classes which can't be resolved
-            CodeStyleManager.getInstance(fileCopy.getManager()).optimizeImports(fileCopy);
-        } catch (IncorrectOperationException e) {
-            throw new IllegalStateException(e);
-        }
-
         prepareSootClasses();
 
-//        System.out.println(fileCopy.getText());
-
         loadSootClasses();
-
-        try {
-            context.setTracker(new OffsetsTracker(new StringReader(fileCopy.getText())));
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
 
         storeSootObjects();
 
@@ -151,13 +84,14 @@ public class CodeAnalyzer {
         JimpleMethodPreprocessor preprocessor = new JimpleMethodPreprocessor(context);
         preprocessor.preprocessCode();
 
-        tagNulls();
+        addAnalysisTags();
     }
 
     public void resetSoot() {
-        InitialResolver ir = InitialResolver.v();
-        ir.clearCallList();
-        ir.clearAsts();
+        // we don't use Soot's InitialResolver anymore
+//        InitialResolver ir = InitialResolver.v();
+//        ir.clearCallList();
+//        ir.clearAsts();
         Scene scene = Scene.v();
         scene.getClassNumberer().clear();
         scene.getMethodNumberer().clear();
@@ -184,11 +118,14 @@ public class CodeAnalyzer {
     private void prepareCodeForAnalysis() {
 //        LocalSplitter.v().transform(body);
 //        CopyPropagator.v().transform(body);
-        for (SootMethod method : context.getSootMethods()) {
-            convertSootStrippedAssignment(method);
-        }
+
+        // the PsiMethodSource does not strip assignments anymore
+//        for (SootMethod method : context.getSootMethods()) {
+//            convertSootStrippedAssignment(method);
+//        }
     }
 
+    /*
     private void convertSootStrippedAssignment(SootMethod method) {
         Body body = method.retrieveActiveBody();
         ConstantPropagatorAndFolder.v().transform(body);
@@ -229,7 +166,7 @@ public class CodeAnalyzer {
             if (!any) continue;
 
             OffsetsTracker tracker = context.getTracker();
-            PsiElement el = tracker.getElementAtPosition(context.getFileCopy(),
+            PsiElement el = context.getElementAtPosition(context.getFileCopy(),
                     new SourceLnPosTag(sline, eline, spos, epos));
             if (el == null) continue;
             PsiVariable var = PsiTools.getReferencedVariable(el);
@@ -248,28 +185,18 @@ public class CodeAnalyzer {
             origBox.addAllTagsOf(invokeStmt);
             body.getUnits().swapWith(unit, stmt);
         }
-    }
+    }*/
 
     /**
      * Adds the necessary class references to Soot's list of classes, and sets
      * the class provider to a virtual provider for {@code fileCopy}.
      */
     private void prepareSootClasses() {
-        List<String> names = new ArrayList<String>();
-        PsiJavaFile fileCopy = context.getFileCopy();
-        PsiClass[] psiClasses = fileCopy.getClasses();
-        List<PsiClass> classes = new ArrayList<PsiClass>(
-                Arrays.asList(psiClasses));
-        for (PsiClass psiClass : psiClasses) {
-            Collections.addAll(classes, psiClass.getAllInnerClasses());
-        }
-        for (PsiClass cls : classes) {
-            names.add(PsiTools.getJavaNameForClass(cls));
-        }
+        final PsiJavaFile fileCopy = context.getFileCopy();
 
         // tell Soot where to find the code
-        SourceLocator.v().setClassProviders(Collections.singletonList(
-                new PsiJavaFileClassProvider(names, fileCopy)));
+        provider = new PsiClassProvider(fileCopy);
+        SourceLocator.v().setClassProviders(Collections.singletonList(provider));
 
         // clean out Soot from previous runs
         Scene scene = Scene.v();
@@ -278,7 +205,7 @@ public class CodeAnalyzer {
         scene.getPhantomClasses().clear();
 
         // add the classes we're scanning to Soot's list
-        for (String name : names) {
+        for (String name : provider.getNames()) {
             scene.addBasicClass(name, SootClass.BODIES);
         }
 
@@ -291,29 +218,28 @@ public class CodeAnalyzer {
         // add any classes we might reference
         scene.addBasicClass(UnexpectedNullValueException.class.getName());
         scene.addBasicClass(NullParameterException.class.getName());
-        scene.addBasicClass(NonNullTools.class.getName());
-        scene.addBasicClass(NonNull.class.getName());
-        scene.addBasicClass(Nullable.class.getName());
         scene.addBasicClass(NullReturnException.class.getName());
+        scene.addBasicClass(NonNullTools.class.getName());
     }
 
     private void loadSootClasses() {
         Options options = Options.v();
         options.set_allow_phantom_refs(true);
-        options.set_keep_line_number(true);
-        options.set_keep_offset(true);
+//        options.set_keep_line_number(true);
+//        options.set_keep_offset(true);
         Scene scene = Scene.v();
         scene.setPhantomRefs(true);
         scene.loadBasicClasses();
+
         List<SootClass> classes = new ArrayList<SootClass>();
-        for (PsiClass cls : context.getFileCopy().getClasses()) {
-            addClass(cls, classes);
+        for (String name : provider.getNames()) {
+            classes.add(scene.getSootClass(name));
         }
         context.setSootClasses(classes);
     }
 
     private void addClass(PsiClass cls, List<SootClass> classes) {
-        if (cls.isInterface()) return;
+//        if (cls.isInterface()) return;
         String name = PsiTools.getJavaNameForClass(cls);
         classes.add(Scene.v().getSootClass(name));
         for (PsiClass psiClass : cls.getInnerClasses()) {
@@ -321,11 +247,14 @@ public class CodeAnalyzer {
         }
     }
 
-    private void tagNulls() {
+    private void addAnalysisTags() {
         NullPointerTagger checker = new NullPointerTagger();
+        NullableTagger nullableTagger = new NullableTagger(context);
         Scene.v().setPhantomRefs(true);
         for (SootMethod method : context.getSootMethods()) {
-            checker.transform(method.retrieveActiveBody());
+            Body body = method.retrieveActiveBody();
+            checker.transform(body);
+            nullableTagger.transform(body);
         }
     }
 
@@ -340,28 +269,73 @@ public class CodeAnalyzer {
 //        }
     }
 
-    private Type getSootType(PsiType psiType) {
-        Type out = staticSootTypes.get(psiType);
-        if (out == null) {
-            if (psiType instanceof PsiArrayType) {
-                PsiArrayType type = (PsiArrayType) psiType;
-                return ArrayType.v(getSootType(type.getComponentType()),
-                        type.getArrayDimensions());
-            } else if (psiType instanceof PsiClassType) {
-                PsiClassType type = (PsiClassType) psiType;
-                PsiClass resolved = type.resolve();
-                String fqn;
-                if (resolved == null) {
-                    fqn = type.getClassName();
-                } else {
-                    fqn = resolved.getQualifiedName();
-                }
-                return RefType.v(fqn);
+    private static class PsiClassProvider implements ClassProvider {
+        private InitialResolver resolver = new InitialResolver();
+        private List<String> names = new ArrayList<String>();
+        private PsiManager manager;
+        private PsiJavaFile fileCopy;
+
+        public PsiClassProvider(PsiJavaFile fileCopy) {
+            this.fileCopy = fileCopy;
+            manager = fileCopy.getManager();
+            resolver.setAst(fileCopy);
+            resolver.resolveAST();
+        }
+
+        private void addClass(PsiClass psiClass) {
+            names.add(Util.getJavaClassName(resolver, psiClass));
+        }
+
+        public List<String> getNames() {
+            updateNames();
+            return names;
+        }
+
+        public ClassSource find(String className) {
+            if (!getNames().contains(className)) {
+                return null;
             } else {
-                throw new IllegalArgumentException("Cannot convert to Soot type:"
-                        + psiType);
+                return new PsiClassSource(resolver, className);
             }
         }
-        return out;
+
+        private void updateNames() {
+            names.clear();
+            fileCopy.accept(new PsiRecursiveElementVisitor() {
+                public void visitClass(PsiClass psiClass) {
+                    super.visitClass(psiClass);
+
+                    if (PsiUtil.isLocalClass(psiClass)) {
+                        String name = Util.getLocalClassName(resolver, psiClass);
+                        if (name != null) names.add(name);
+                    } else if (psiClass instanceof PsiAnonymousClass) {
+                        PsiAnonymousClass acls = (PsiAnonymousClass) psiClass;
+
+                        String name = Util.getAnonymousClassName(resolver, acls);
+                        if (name != null) names.add(name);
+                    } else {
+                        addClass(psiClass);
+                    }
+                }
+
+                public void visitAnonymousClass(PsiAnonymousClass psiAnonymousClass) {
+                    super.visitAnonymousClass(psiAnonymousClass);
+                }
+            });
+        }
+
+        private class PsiClassSource extends ClassSource {
+            private final InitialResolver resolver;
+
+            public PsiClassSource(InitialResolver resolver, String className) {
+                super(className);
+                this.resolver = resolver;
+            }
+
+            public List<Type> resolve(SootClass sc) {
+                List<Type> types = resolver.resolveFromJavaFile(sc);
+                return types;
+            }
+        }
     }
 }

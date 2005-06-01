@@ -33,42 +33,15 @@
 
 package net.kano.nully.plugin.analysis.nulls;
 
-import net.kano.nully.annotations.NonNull;
-import net.kano.nully.plugin.NullyTools;
-import net.kano.nully.plugin.PossiblyNullReferenceInfo;
-import net.kano.nully.plugin.SootTools;
-import net.kano.nully.plugin.analysis.AnalysisContext;
-import net.kano.nully.plugin.analysis.ProblemFinder;
-import soot.Body;
-import soot.SootMethod;
+import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiExpression;
 import soot.ValueBox;
-import soot.jimple.Stmt;
+import net.kano.nully.annotations.NonNull;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-
-public class NullableProblemFinder implements ProblemFinder<NullableProblem> {
-    public Collection<NullableProblem> findProblems(AnalysisContext context) {
-        List<NullableProblem> problems = new ArrayList<NullableProblem>();
-        for (SootMethod method : context.getSootMethods()) {
-            tagProblemsForMember(context, method.retrieveActiveBody(), problems);
-        }
-        return problems;
-    }
-
-    private synchronized void tagProblemsForMember(AnalysisContext context,
-            @NonNull Body body, List<NullableProblem> problems) {
-        for (Stmt unit : (Collection<Stmt>)body.getUnits()) {
-            ValueBox valueBox = SootTools.getReferencedObject(unit);
-            if (valueBox == null) continue;
-            PossiblyNullReferenceInfo info
-                        = NullyTools.getPossiblyNullNullableReference(context,
-                        unit, valueBox);
-            if (info != null) {
-                problems.add(new NullableProblem(info.getUse(),
-                        info.getPossiblyNullReference()));
-            }
-        }
+public class DefinitelyNullDereferenceProblem extends NullDereferenceProblem {
+    public DefinitelyNullDereferenceProblem(@NonNull PsiElement element,
+            @NonNull PsiExpression ref, @NonNull ValueBox value,
+            boolean definitelyNull) {
+        super(element, ref, value, definitelyNull);
     }
 }

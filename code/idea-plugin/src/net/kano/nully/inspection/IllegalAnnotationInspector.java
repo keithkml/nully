@@ -53,6 +53,7 @@ import net.kano.nully.plugin.analysis.AnalysisContext;
 
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 public class IllegalAnnotationInspector
         extends ProblemFinderBasedInspector<IllegalAnnotationFinder,
@@ -70,7 +71,7 @@ public class IllegalAnnotationInspector
         return new IllegalAnnotationFinder();
     }
 
-    protected EnumSet<InspectionType> getInspectionTypes() {
+    protected Set<InspectionType> getInspectionTypes() {
         return EnumSet.of(InspectionType.FILE);
     }
 

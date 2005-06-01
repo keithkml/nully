@@ -33,16 +33,15 @@
 
 package net.kano.nully.plugin.analysis.nulls;
 
-import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiExpression;
+import soot.tagkit.Tag;
+import soot.tagkit.AttributeValueException;
 
-public class NullableProblem extends NullProblem {
-    private PsiExpression origBad;
-
-    public NullableProblem(PsiElement element, PsiExpression origBad) {
-        super(element);
-        this.origBad = origBad;
+public class NullableTag implements Tag {
+    public String getName() {
+        return "NullableTag";
     }
 
-    public PsiExpression getReferenceExpression() { return origBad; }
+    public byte[] getValue() throws AttributeValueException {
+        throw new IllegalStateException("no value for nullable tag");
+    }
 }

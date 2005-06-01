@@ -31,11 +31,10 @@
  *
  */
 
-package net.kano.nully.plugin.analysis;
+package net.kano.nully.plugin.analysis.nulls;
 
-import net.kano.nully.plugin.analysis.nulls.NullProblem;
-import net.kano.nully.plugin.analysis.nulls.NullValueProblemFinder;
-import net.kano.nully.plugin.analysis.nulls.NullableProblemFinder;
+import net.kano.nully.plugin.analysis.AnalysisContext;
+import net.kano.nully.plugin.analysis.ProblemFinder;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -50,8 +49,11 @@ public class NullAnalysisProblemFinder implements ProblemFinder<NullProblem> {
         NullValueProblemFinder nonnullf = new NullValueProblemFinder();
         problems.addAll(nonnullf.findProblems(context));
 
-        NullableProblemFinder nullablef = new NullableProblemFinder();
+        NullableDereferenceProblemFinder nullablef = new NullableDereferenceProblemFinder();
         problems.addAll(nullablef.findProblems(context));
+
+        DefinitelyNullDereferenceProblemFinder dereff = new DefinitelyNullDereferenceProblemFinder();
+        problems.addAll(dereff.findProblems(context));
 
         return problems;
     }

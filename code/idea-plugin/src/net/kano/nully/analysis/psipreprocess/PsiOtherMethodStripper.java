@@ -83,8 +83,6 @@ public class PsiOtherMethodStripper extends PsiRecursiveElementVisitor {
     private static final Logger LOGGER
             = Logger.getInstance(PsiOtherMethodStripper.class.getName());
 
-    //TODO: strip inheritance
-
     /** A list of classes which must not be deleted. */
     private final Collection<PsiClass> keepClasses;
     /** The names of classes which were stripped. */

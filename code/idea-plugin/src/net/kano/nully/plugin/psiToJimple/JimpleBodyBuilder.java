@@ -227,7 +227,8 @@ public class JimpleBodyBuilder extends JBB4 {
         body.getUnits().add(stmt1);
         Util.addPsiTags(stmt1, unary);
 
-        soot.Value incVal = base().getConstant(Util.getSootType(expr.getType()), 1);
+        soot.Value incVal = base().getConstant(Util.getSootType(initialResolver,
+                expr.getType()), 1);
 
         soot.jimple.BinopExpr binExpr;
         IElementType op = Util.getUnaryOperationSign(unary).getTokenType();
@@ -303,8 +304,7 @@ public class JimpleBodyBuilder extends JBB4 {
         } else {
             destCls = ((PsiClassType) qualifier.getType()).resolve();
         }
-        soot.SootClass containClass = Util.getSootType(
-                destCls).getSootClass();
+        soot.SootClass containClass = Util.getSootType(initialResolver, destCls).getSootClass();
         soot.SootMethod methToUse = addSetAccessMeth(containClass, field, right);
         List<Value> params = new ArrayList<Value>();
         if (!field.getModifierList().hasModifierProperty("static")){
@@ -386,9 +386,10 @@ public class JimpleBodyBuilder extends JBB4 {
         } else {
             qualifierCls = ((PsiClassType) qualifier.getType()).resolve();
         }
-        soot.SootClass receiverClass = Util.getSootType(qualifierCls).getSootClass();
+        soot.SootClass receiverClass = Util.getSootType(initialResolver,
+                qualifierCls).getSootClass();
         soot.SootFieldRef receiverField = soot.Scene.v().makeFieldRef(receiverClass,
-                field.getName(), Util.getSootType(field.getType()), isStatic);
+                field.getName(), Util.getSootType(initialResolver, field.getType()), isStatic);
 
         soot.jimple.FieldRef fieldRef;
         if (isStatic) {
@@ -462,7 +463,7 @@ public class JimpleBodyBuilder extends JBB4 {
                 if (finalLocals != null){
                     for (IdentityKey<PsiVariable> next : finalLocals) {
                         PsiVariable li =   next.object();
-                        sootParamTypes.add(Util.getSootType(li.getType()));
+                        sootParamTypes.add(Util.getSootType(initialResolver, li.getType()));
                         sootParams.add(getLocal(li));
                     }
                 }
@@ -482,7 +483,7 @@ public class JimpleBodyBuilder extends JBB4 {
         }
 
         // other nested
-        else if (typeToInvoke.getContainingClass() != null
+        else if (Util.getOuterClass(typeToInvoke) != null
                 && !typeToInvoke.getModifierList().hasModifierProperty("static")
                 && !PsiUtil.isLocalOrAnonymousClass(typeToInvoke)){
             return true;
@@ -490,6 +491,7 @@ public class JimpleBodyBuilder extends JBB4 {
 
         return false;
     }
+
 
     /**
      * adds outer class params
@@ -499,10 +501,10 @@ public class JimpleBodyBuilder extends JBB4 {
             PsiClass typeToInvoke){
         boolean addRef = needsOuterClassRef(typeToInvoke);
         //(needsRef != null) && (needsRef.contains(Util.getSootType(typeToInvoke)));
-        PsiClass outerCls = typeToInvoke.getContainingClass();
+        PsiClass outerCls = Util.getOuterClass(typeToInvoke);
         if (addRef){
             // if adding an outer type ref always add exact type
-            soot.SootClass outerClass = Util.getSootType(
+            soot.SootClass outerClass = Util.getSootType(initialResolver,
                     outerCls).getSootClass();
             sootParamsTypes.add(outerClass.getType());
         }
@@ -513,12 +515,12 @@ public class JimpleBodyBuilder extends JBB4 {
             sootParams.add(qVal);
         }
         else if (addRef && !isAnon){
-            soot.SootClass outerClass = Util.getSootType(
+            soot.SootClass outerClass = Util.getSootType(initialResolver,
                     outerCls).getSootClass();
             sootParams.add(getThis(outerClass.getType()));
         }
         else if (addRef && isAnon){
-            soot.SootClass outerClass = Util.getSootType(
+            soot.SootClass outerClass = Util.getSootType(initialResolver,
                     outerCls).getSootClass();
             sootParams.add(getThis(outerClass.getType()));
         }
@@ -548,7 +550,8 @@ public class JimpleBodyBuilder extends JBB4 {
 
         if (name.equals("super")) {
             PsiElementFactory factory = call.getManager().getElementFactory();
-            classToInvoke = ((soot.RefType)Util.getSootType(factory.createType(cls))).getSootClass();
+            classToInvoke = ((soot.RefType)Util.getSootType(initialResolver,
+                    factory.createType(cls))).getSootClass();
         }
         else if (name.equals("this")) {
             classToInvoke = body.getMethod().getDeclaringClass();
@@ -599,7 +602,7 @@ public class JimpleBodyBuilder extends JBB4 {
     protected void handleImpliedConstructorCall(PsiMethod constructor) {
         PsiClass cls = constructor.getContainingClass().getSuperClass();
 
-        soot.SootClass classToInvoke = Util.getSootType(cls).getSootClass();
+        soot.SootClass classToInvoke = Util.getSootType(initialResolver, cls).getSootClass();
 
         List<Value> sootParams = new ArrayList<Value>();
         List<Type> sootParamsTypes = new ArrayList<Type>();
@@ -659,7 +662,7 @@ public class JimpleBodyBuilder extends JBB4 {
         soot.SootClass receiverTypeClass;
         PsiMethod method = call.resolveMethod();
         PsiClass methodCls = method.getContainingClass();
-        if (Util.getSootType(methodCls)
+        if (Util.getSootType(initialResolver, methodCls)
                 .equals(soot.RefType.v("java.lang.Object"))){
             sootRecType = soot.RefType.v("java.lang.Object");
             receiverTypeClass = soot.Scene.v().getSootClass("java.lang.Object");
@@ -669,11 +672,12 @@ public class JimpleBodyBuilder extends JBB4 {
             if (qualifier != null) {
                 PsiType qualifierType = qualifier.getType();
                 if (qualifierType != null) {
-                    sootRecType = Util.getSootType(qualifierType);
+                    sootRecType = Util.getSootType(initialResolver,
+                            qualifierType);
                 }
             }
             if (sootRecType == null) {
-                sootRecType = Util.getSootType(methodCls);
+                sootRecType = Util.getSootType(initialResolver, methodCls);
             }
             if (sootRecType instanceof soot.RefType){
                  receiverTypeClass = ((soot.RefType)sootRecType).getSootClass();
@@ -687,7 +691,7 @@ public class JimpleBodyBuilder extends JBB4 {
             }
         }
 
-        soot.Type sootRetType = Util.getSootType(method.getReturnType());
+        soot.Type sootRetType = Util.getSootType(initialResolver, method.getReturnType());
         List<Type> sootParamsTypes = getSootParamsTypes(call);
 
         soot.SootMethodRef callMethod = soot.Scene.v().makeMethodRef(

@@ -31,60 +31,44 @@
  *
  */
 
-package net.kano.nully.plugin.analysis.nulls.soot;
+package net.kano.nully.plugin.analysis.nulls;
 
+import net.kano.nully.plugin.NullyTools;
+import net.kano.nully.plugin.PossiblyNullReferenceInfo;
+import net.kano.nully.plugin.ReferencedElementInfo;
 import net.kano.nully.plugin.SootTools;
-import soot.Body;
-import soot.BodyTransformer;
-import soot.RefLikeType;
-import soot.Value;
+import net.kano.nully.plugin.analysis.AnalysisContext;
+import net.kano.nully.plugin.analysis.ProblemFinder;
+import net.kano.nully.plugin.analysis.nulls.soot.MayBeNullTag;
+import soot.SootMethod;
 import soot.ValueBox;
 import soot.jimple.Stmt;
-import soot.jimple.toolkits.annotation.nullcheck.BranchedRefVarsAnalysis;
-import soot.toolkits.graph.ExceptionalUnitGraph;
-import soot.toolkits.scalar.FlowSet;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
-/**
- * Tags possible null references with a {@link MayBeNullTag}.
- */
-public class NullPointerTagger extends BodyTransformer {
-	protected void internalTransform (Body b, String phaseName, Map options) {
-		BranchedRefVarsAnalysis analysis = new BranchedRefVarsAnalysis (
-				new ExceptionalUnitGraph(b));
+//TODO: deal with suppression in other finders
+public class DefinitelyNullDereferenceProblemFinder implements ProblemFinder<DefinitelyNullDereferenceProblem> {
+    public Collection<DefinitelyNullDereferenceProblem> findProblems(AnalysisContext context) {
+        List<DefinitelyNullDereferenceProblem> problems = new ArrayList<DefinitelyNullDereferenceProblem>();
+        for (SootMethod method : context.getSootMethods()) {
+            for (Stmt stmt : (Collection<Stmt>)method.retrieveActiveBody().getUnits()) {
+                ValueBox box = SootTools.getDereferencedObject(stmt);
+                if (box == null) continue;
 
-        for (Stmt s : (Collection<Stmt>)b.getUnits()) {
-            FlowSet beforeSet = (FlowSet) analysis.getFlowBefore(s);
-
-            for (ValueBox vBox : (List<ValueBox>) s.getUseBoxes()) {
-                addColorTags(vBox, s, beforeSet, analysis);
-            }
-
-            FlowSet afterSet = (FlowSet) analysis.getFallFlowAfter(s);
-
-            for (ValueBox vBox : (Collection<ValueBox>)s.getDefBoxes()) {
-                addColorTags(vBox, s, afterSet, analysis);
+                MayBeNullTag nullTag = SootTools.getMayBeNullTag(box);
+                if (nullTag == null) continue;
+                boolean definitelyNull = nullTag.isDefinitelyNull();
+                if (definitelyNull/* || SootTools.hasNullableTag(box)*/) {
+                    ReferencedElementInfo refInfo = NullyTools.getReferenceInfo(box);
+                    PossiblyNullReferenceInfo info
+                            = NullyTools.getReferenceInfo(context, stmt, refInfo, nullTag);
+                    problems.add(new DefinitelyNullDereferenceProblem(info.getUse(),
+                            info.getPossiblyNullReference(), box, definitelyNull));
+                }
             }
         }
-	}
-
-	private void addColorTags(ValueBox vBox, Stmt s, FlowSet set,
-            BranchedRefVarsAnalysis analysis){
-		Value val = vBox.getValue();
-        if (!(val.getType() instanceof RefLikeType)) return;
-
-        int vInfo = analysis.anyRefInfo(val, set);
-
-        boolean definitelyNull = vInfo == BranchedRefVarsAnalysis.kNull;
-        if (definitelyNull
-                || vInfo == BranchedRefVarsAnalysis.kTop
-                || vInfo == BranchedRefVarsAnalysis.kBottom) {
-            vBox.addTag(new MayBeNullTag(definitelyNull));
-            if (vBox == SootTools.getDereferencedObject(s)) vBox.addTag(new MayThrowNpeTag(definitelyNull));
-        }
+        return problems;
     }
-
 }

@@ -54,6 +54,7 @@ import net.kano.nully.plugin.analysis.AnalysisContext;
 
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 public class IllegalOverrideInspector
         extends ProblemFinderBasedInspector<IllegalOverrideFinder, IllegalOverrideProblem<?>> {
@@ -72,7 +73,7 @@ public class IllegalOverrideInspector
         return new IllegalOverrideFinder();
     }
 
-    protected EnumSet<InspectionType> getInspectionTypes() {
+    protected Set<InspectionType> getInspectionTypes() {
         return EnumSet.of(InspectionType.METHOD);
     }
 
