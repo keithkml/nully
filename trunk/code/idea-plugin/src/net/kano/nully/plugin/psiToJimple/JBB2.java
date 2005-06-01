@@ -114,7 +114,7 @@ public abstract class JBB2 extends AbstractJimpleBodyBuilder {
      */
     protected void createFormal(PsiParameter formal, int counter){
 
-        soot.Type sootType = Util.getSootType(formal.getType());
+        soot.Type sootType = Util.getSootType(initialResolver, formal.getType());
         soot.Local formalLocal = createLocal(formal);
         soot.jimple.ParameterRef paramRef = soot.jimple.Jimple.v().newParameterRef(sootType, counter);
         paramRefCount++;
@@ -167,7 +167,7 @@ public abstract class JBB2 extends AbstractJimpleBodyBuilder {
 // this should be used for polyglot locals and formals
     protected soot.Local createLocal(PsiVariable localInst) {
 
-        soot.Type sootType = Util.getSootType(localInst.getType());
+        soot.Type sootType = Util.getSootType(initialResolver, localInst.getType());
         String name = localInst.getName();
         soot.Local sootLocal = createLocal(name, sootType);
 
@@ -200,11 +200,11 @@ public abstract class JBB2 extends AbstractJimpleBodyBuilder {
             return sootLocal;
         }
         else if (body.getMethod().getDeclaringClass().declaresField("val$"+li.getName(),
-                Util.getSootType(li.getType()))){
+                Util.getSootType(initialResolver, li.getType()))){
             soot.Local fieldLocal = generateLocal(li.getType());
             soot.SootFieldRef field = soot.Scene.v().makeFieldRef(
                     body.getMethod().getDeclaringClass(), "val$"+li.getName(),
-                    Util.getSootType(li.getType()), false);
+                    Util.getSootType(initialResolver, li.getType()), false);
             soot.jimple.FieldRef fieldRef = soot.jimple.Jimple.v()
                     .newInstanceFieldRef(specialThisLocal, field);
             soot.jimple.AssignStmt assign = soot.jimple.Jimple.v()
@@ -237,7 +237,8 @@ public abstract class JBB2 extends AbstractJimpleBodyBuilder {
                 soot.SootClass outerClass = ((soot.RefType)type).getSootClass();
                 // look for field of type li.type and name val$li.name in outer
                 // class
-                if (outerClass.declaresField("val$"+li.getName(), Util.getSootType(li.getType()))){
+                if (outerClass.declaresField("val$"+li.getName(), Util.getSootType(initialResolver,
+                        li.getType()))){
                     fieldFound = true;
                 }
                 currentClass = outerClass;
@@ -265,11 +266,11 @@ public abstract class JBB2 extends AbstractJimpleBodyBuilder {
         paramTypes.add(classToInvoke.getType());
 
         soot.SootMethod meth = new soot.SootMethod(name, paramTypes,
-                Util.getSootType(li.getType()), soot.Modifier.STATIC);
+                Util.getSootType(initialResolver, li.getType()), soot.Modifier.STATIC);
 
         classToInvoke.addMethod(meth);
         PrivateFieldAccMethodSource src = new PrivateFieldAccMethodSource(
-        Util.getSootType(li.getType()),
+        Util.getSootType(initialResolver, li.getType()),
         "val$"+li.getName(),
         false,
                 classToInvoke
@@ -759,7 +760,8 @@ public abstract class JBB2 extends AbstractJimpleBodyBuilder {
         else {
             // this class
             soot.SootClass thisClass = body.getMethod().getDeclaringClass();
-            String fieldName = Util.getFieldNameForClassLit(type);
+            String fieldName = Util.getFieldNameForClassLit(initialResolver,
+                    type);
             Type fieldType = RefType.v("java.lang.Class");
             Local fieldLocal = lg.generateLocal(RefType.v("java.lang.Class"));
             soot.SootFieldRef sootField = null;
@@ -809,7 +811,8 @@ public abstract class JBB2 extends AbstractJimpleBodyBuilder {
                         paramTypes, RefType.v("java.lang.Class"), true);
             }
             List<soot.jimple.StringConstant> params = new ArrayList<soot.jimple.StringConstant>();
-            params.add(soot.jimple.StringConstant.v(Util.getParamNameForClassLit(type)));
+            params.add(soot.jimple.StringConstant.v(Util.getParamNameForClassLit(initialResolver,
+                    type)));
             soot.jimple.Expr classInvoke = soot.jimple.Jimple.v().newStaticInvokeExpr(
                     invokeMeth, params);
             Local methLocal = lg.generateLocal(RefType.v("java.lang.Class"));
@@ -974,7 +977,7 @@ public abstract class JBB2 extends AbstractJimpleBodyBuilder {
 
     protected Local getThis(Type sootType){
 
-        return Util.getThis(sootType, body, getThisMap, lg);
+        return Util.getThis(initialResolver, sootType, body, getThisMap, lg);
     }
 
     /**
@@ -1038,7 +1041,7 @@ public abstract class JBB2 extends AbstractJimpleBodyBuilder {
      * Extra Local Variables Generation
      */
     protected Local generateLocal(PsiType psiType) {
-        Type type = Util.getSootType(psiType);
+        Type type = Util.getSootType(initialResolver, psiType);
         return lg.generateLocal(type);
     }
 

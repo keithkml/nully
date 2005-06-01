@@ -31,40 +31,21 @@
  *
  */
 
-package net.kano.nully.plugin.inspection;
+package net.kano.nully.plugin.analysis.nulls;
 
-import com.intellij.codeInspection.InspectionManager;
-import com.intellij.codeInspection.ProblemDescriptor;
-import net.kano.nully.annotations.NullyInstrumented;
-import net.kano.nully.plugin.analysis.NullyInstrumentedFinder;
-import net.kano.nully.plugin.analysis.NullyInstrumentedProblem;
-import net.kano.nully.plugin.analysis.AnalysisContext;
+import net.kano.nully.annotations.NonNull;
+import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiExpression;
+import soot.ValueBox;
 
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Set;
+public abstract class NullDereferenceProblem extends NullProblem {
+    protected PsiExpression ref;
 
-public class NullyInstrumentedInspector extends ProblemFinderBasedInspector<NullyInstrumentedFinder, NullyInstrumentedProblem> {
-    protected NullyInstrumentedFinder getFinderInstance() {
-        return new NullyInstrumentedFinder();
+    public NullDereferenceProblem(@NonNull PsiElement element, @NonNull PsiExpression ref,
+            @NonNull ValueBox value, boolean definitelyNull) {
+        super(element, value, definitelyNull);
+        this.ref = ref;
     }
 
-    protected Set<InspectionType> getInspectionTypes() {
-        return EnumSet.of(InspectionType.FILE);
-    }
-
-    protected void addProblems(AnalysisContext context,
-            InspectionManager manager,
-            List<ProblemDescriptor> problems,
-            NullyInstrumentedProblem problem) {
-    }
-
-    public String getDisplayName() {
-        return "Illegal @" + NullyInstrumented.class.getSimpleName()
-                + " annotation";
-    }
-
-    public String getShortName() {
-        return "NullyInstrumented";
-    }
+    public PsiExpression getReferenceExpression() { return ref; }
 }

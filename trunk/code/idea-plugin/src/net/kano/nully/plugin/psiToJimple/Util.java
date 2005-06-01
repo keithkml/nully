@@ -36,13 +36,13 @@ import com.intellij.psi.PsiPrefixExpression;
 import com.intellij.psi.PsiPrimitiveType;
 import com.intellij.psi.PsiReferenceExpression;
 import com.intellij.psi.PsiType;
+import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtil;
 import com.intellij.psi.util.TypeConversionUtil;
 import soot.Local;
 import soot.RefType;
 import soot.Type;
 import soot.ValueBox;
-import soot.javaToJimple.InitialResolver;
 import soot.tagkit.Host;
 
 import java.util.ArrayList;
@@ -52,6 +52,9 @@ import java.util.List;
 import java.util.Map;
 
 public class Util {
+    //TODO: move some Util methods to initialresolver
+    //TODO: class initializers don't work
+
 
     public static void addInnerClassTag(soot.SootClass sc, String innerName,
             String outerName, String simpleName, int access){
@@ -63,13 +66,14 @@ public class Util {
         }
         sc.addTag(new soot.tagkit.InnerClassTag(innerName, outerName,
                 simpleName, access));
-    
+
     }
-    
-    public static String getParamNameForClassLit(PsiType type){
+
+    public static String getParamNameForClassLit(InitialResolver initialResolver,
+            PsiType type){
         String name = "";
         if (type instanceof PsiArrayType){
-            int dims = ((PsiArrayType)type).getArrayDimensions();
+            int dims = type.getArrayDimensions();
             PsiType arrType = ((PsiArrayType)type).getComponentType();
             while (arrType instanceof PsiArrayType) {
               arrType = ((PsiArrayType)arrType).getComponentType();
@@ -100,10 +104,10 @@ public class Util {
                 fieldName = "S";
             }
             else {
-                String typeSt = getSootType(arrType).toString();
+                String typeSt = getSootType(initialResolver, arrType).toString();
                 fieldName = "L"+typeSt;
             }
-            
+
             for (int i = 0; i < dims; i++){
                 name += "[";
             }
@@ -113,12 +117,13 @@ public class Util {
             }
         }
         else {
-            name = getSootType(type).toString();
+            name = getSootType(initialResolver, type).toString();
         }
         return name;
     }
-    
-    public static String getFieldNameForClassLit(PsiType type){
+
+    public static String getFieldNameForClassLit(InitialResolver initialResolver,
+            PsiType type){
         String fieldName = "";
         if (type instanceof PsiArrayType){
             PsiArrayType atype = ((PsiArrayType) type);
@@ -156,7 +161,7 @@ public class Util {
                 fieldName += "S";
             }
             else {
-                String typeSt = getSootType(arrType).toString();
+                String typeSt = getSootType(initialResolver, arrType).toString();
                 typeSt = soot.util.StringTools.replaceAll(typeSt, ".", "$");
 
                 fieldName = fieldName+"L"+typeSt;
@@ -164,18 +169,18 @@ public class Util {
        }
        else {
             fieldName = "class$";
-            String typeSt = getSootType(type).toString();
+            String typeSt = getSootType(initialResolver, type).toString();
             typeSt = soot.util.StringTools.replaceAll(typeSt, ".", "$");
             fieldName = fieldName+typeSt;
        }
-       
+
        return fieldName;
     }
-    
+
     public static String getSourceFileOfClass(soot.SootClass sootClass){
         String name = sootClass.getName();
         int index = name.indexOf("$");
-        
+
         // inner classes are found in the very outer class
         if (index != -1){
             name = name.substring(0, index);
@@ -183,16 +188,17 @@ public class Util {
         return name;
     }
 
-    
-    public static soot.Local getThis(soot.Type sootType, soot.Body body,
-            Map<soot.Type,soot.Local> getThisMap, LocalGenerator lg){
 
-        if (InitialResolver.v().hierarchy() == null){
-            InitialResolver.v().hierarchy(new soot.FastHierarchy());
+    public static soot.Local getThis(InitialResolver initialResolver,
+            soot.Type sootType, soot.Body body,
+            Map<soot.Type, soot.Local> getThisMap, LocalGenerator lg){
+
+        if (initialResolver.hierarchy() == null){
+            initialResolver.hierarchy(new soot.FastHierarchy());
         }
-        
-        soot.FastHierarchy fh = InitialResolver.v().hierarchy();
-       
+
+        soot.FastHierarchy fh = initialResolver.hierarchy();
+
         //System.out.println("getting this for type: "+sootType);
         // if this for type already created return it from map
         //if (getThisMap.containsKey(sootType)){
@@ -201,36 +207,36 @@ public class Util {
         soot.Local specialThisLocal = body.getThisLocal();
         // if need this just return it
         if (specialThisLocal.getType().equals(sootType)) {
-           
+
             getThisMap.put(sootType, specialThisLocal);
             return specialThisLocal;
         }
-       
+
         // check to see if this method has a local of the correct type (it will
         // if its an initializer - then ust use it)
         // here we need an exact type I think
-        if (bodyHasLocal(body, sootType)){
-            soot.Local l = getLocalOfType(body, sootType);
+        if (bodyHasLocal(initialResolver, body, sootType)){
+            soot.Local l = getLocalOfType(initialResolver, body, sootType);
             getThisMap.put(sootType, l);
             return l;
         }
-        
+
         // otherwise get this$0 for one level up
         soot.SootClass classToInvoke = ((soot.RefType)specialThisLocal.getType()).getSootClass();
         soot.SootField outerThisField = classToInvoke.getFieldByName("this$0");
         soot.Local t1 = lg.generateLocal(outerThisField.getType());
-        
+
         soot.jimple.FieldRef fieldRef = soot.jimple.Jimple.v().newInstanceFieldRef(
                 specialThisLocal, outerThisField.makeRef());
         soot.jimple.AssignStmt fieldAssignStmt = soot.jimple.Jimple.v().newAssignStmt(
                 t1, fieldRef);
         body.getUnits().add(fieldAssignStmt);
-         
+
         if (fh.canStoreType(t1.getType(), sootType)){
             getThisMap.put(sootType, t1);
-            return t1;            
+            return t1;
         }
-        
+
         // check to see if this method has a local of the correct type (it will
         // if its an initializer - then ust use it)
         // here we need an exact type I think
@@ -239,15 +245,16 @@ public class Util {
             getThisMap.put(sootType, l);
             return l;
         }*/
-        
+
         // otherwise make a new access method
         soot.Local t2 = t1;
 
-        return getThisGivenOuter(sootType, getThisMap, body, lg, t2);
+        return getThisGivenOuter(initialResolver, sootType, getThisMap, body, lg, t2);
     }
 
-    private static soot.Local getLocalOfType(soot.Body body, soot.Type type) {
-        soot.FastHierarchy fh = InitialResolver.v().hierarchy();
+    private static soot.Local getLocalOfType(InitialResolver initialResolver,
+            soot.Body body, soot.Type type) {
+        soot.FastHierarchy fh = initialResolver.hierarchy();
         Iterator stmtsIt = body.getUnits().iterator();
         soot.Local correctLocal = null;
         while (stmtsIt.hasNext()){
@@ -266,9 +273,10 @@ public class Util {
         }
         return correctLocal;
     }
-    
-    private static boolean bodyHasLocal(soot.Body body, soot.Type type) {
-        soot.FastHierarchy fh = InitialResolver.v().hierarchy();
+
+    private static boolean bodyHasLocal(InitialResolver initialResolver,
+            soot.Body body, soot.Type type) {
+        soot.FastHierarchy fh = initialResolver.hierarchy();
         Iterator stmtsIt = body.getUnits().iterator();
         soot.Local correctLocal = null;
         while (stmtsIt.hasNext()){
@@ -287,32 +295,34 @@ public class Util {
         }
         return false;
         /*soot.FastHierarchy fh = InitialResolver.v().hierarchy();
-        Iterator it = body.getDefBoxes().iterator();
-        while (it.hasNext()){
-            soot.ValueBox vb = (soot.ValueBox)it.next();
-            if ((vb.getValue() instanceof soot.Local) && (fh.canStoreType(type, vb.getValue().getType()))){//(vb.getValue().getType().equals(type))){
-                return true;
-            }
-        }
-        return false;*/
+       Iterator it = body.getDefBoxes().iterator();
+       while (it.hasNext()){
+           soot.ValueBox vb = (soot.ValueBox)it.next();
+           if ((vb.getValue() instanceof soot.Local) && (fh.canStoreType(type, vb.getValue().getType()))){//(vb.getValue().getType().equals(type))){
+               return true;
+           }
+       }
+       return false;*/
     }
 
-    
-    public static soot.Local getThisGivenOuter(soot.Type sootType,
-            Map<Type,Local> getThisMap, soot.Body body, LocalGenerator lg, soot.Local t2){
-       
-        if (InitialResolver.v().hierarchy() == null){
-            InitialResolver.v().hierarchy(new soot.FastHierarchy());
+
+    public static soot.Local getThisGivenOuter(InitialResolver initialResolver,
+            soot.Type sootType,
+            Map<Type, Local> getThisMap, soot.Body body, LocalGenerator lg,
+            soot.Local t2){
+
+        if (initialResolver.hierarchy() == null){
+            initialResolver.hierarchy(new soot.FastHierarchy());
         }
-        
-        soot.FastHierarchy fh = InitialResolver.v().hierarchy();
-        
+
+        soot.FastHierarchy fh = initialResolver.hierarchy();
+
         while (!fh.canStoreType(t2.getType(),sootType)){
             soot.SootClass classToInvoke = ((soot.RefType)t2.getType()).getSootClass();
             // make an access method and add it to that class for accessing 
             // its private this$0 field
             soot.SootMethod methToInvoke = makeOuterThisAccessMethod(classToInvoke);
-            
+
             // generate a local that corresponds to the invoke of that meth
             soot.Local t3 = lg.generateLocal(methToInvoke.getReturnType());
             ArrayList<Local> methParams = new ArrayList<Local>();
@@ -323,19 +333,19 @@ public class Util {
             body.getUnits().add(assign);
             t2 = t3;
         }
-            
+
         getThisMap.put(sootType, t2);
 
-        return t2;        
+        return t2;
     }
-    
+
 
     private static soot.SootMethod makeOuterThisAccessMethod(soot.SootClass classToInvoke){
         String name = "access$"+soot.javaToJimple.InitialResolver.v()
                 .getNextPrivateAccessCounter()+"00";
         ArrayList<RefType> paramTypes = new ArrayList<RefType>();
         paramTypes.add(classToInvoke.getType());
-        
+
         soot.SootMethod meth = new soot.SootMethod(name, paramTypes,
                 classToInvoke.getFieldByName("this$0").getType(), soot.Modifier.STATIC);
 
@@ -350,7 +360,7 @@ public class Util {
         meth.addTag(new soot.tagkit.SyntheticTag());
         return meth;
     }
-    
+
     public static soot.Local getPrivateAccessFieldInvoke(soot.SootMethodRef toInvoke,
             List params, soot.Body body, LocalGenerator lg){
         soot.jimple.InvokeExpr invoke = soot.jimple.Jimple.v().newStaticInvokeExpr(
@@ -371,11 +381,11 @@ public class Util {
 //        if (type.superType() == null) return false;
 //        return isSubType((polyglot.types.ClassType)type.superType(), superType);
 //    }
-    
+
     /**
      * Type handling
      */
-    public static soot.Type getSootType(PsiType type) {
+    public static soot.Type getSootType(InitialResolver resolver, PsiType type) {
         if (type == null) {
             throw new IllegalArgumentException("Trying to get soot type for null polyglot type");
         }
@@ -384,7 +394,7 @@ public class Util {
         if (type.equals(PsiType.INT)) {
             sootType = soot.IntType.v();
         } else if (type instanceof PsiArrayType) {
-            soot.Type baseType = getSootType(type.getDeepComponentType());
+            soot.Type baseType = getSootType(resolver, type.getDeepComponentType());
             int dims = type.getArrayDimensions();
 
             // do something here if baseType is still an array
@@ -413,7 +423,7 @@ public class Util {
             if (cls == null) {
                 throw new IllegalArgumentException("Couldn't resolve class: " + type);
             }
-            sootType = getSootType(cls);
+            sootType = getSootType(resolver, cls);
 
         } else {
             throw new IllegalArgumentException("Unknown Type " + type);
@@ -421,17 +431,16 @@ public class Util {
         return sootType;
     }
 
-    public static RefType getSootType(PsiClass cls) {
-        PsiClass outer = cls.getContainingClass();
+    public static RefType getSootType(InitialResolver resolver, PsiClass cls) {
+        PsiClass outer = getOuterClass(cls);
         String className = null;
-        String qname = cls.getQualifiedName();
+        String qname = getJavaClassName(resolver, cls);
         if (outer == null) {
             className = qname;
 
         } else {
-            InitialResolver initialResolver = InitialResolver.v();
-            Map<IdentityKey, String> anonTypeMap = initialResolver.getAnonTypeMap();
-            Map<IdentityKey, String> localTypeMap = initialResolver.getLocalTypeMap();
+            Map<IdentityKey<PsiAnonymousClass>,String> anonTypeMap = resolver.getAnonTypeMap();
+            Map<IdentityKey<PsiClass>,String> localTypeMap = resolver.getLocalTypeMap();
             if (PsiUtil.isLocalOrAnonymousClass(cls)) {
                 IdentityKey<PsiClass> key = new IdentityKey<PsiClass>(cls);
                 if (PsiUtil.isLocalClass(cls)) {
@@ -443,63 +452,63 @@ public class Util {
                     assert cls instanceof PsiAnonymousClass;
                     if (anonTypeMap != null && anonTypeMap
                             .containsKey(key)) {
-                        className = (String) anonTypeMap.get(key);
+                        className = anonTypeMap.get(key);
                     }
                 }
             }
             if (className == null) {
-                className = cls.getQualifiedName();
+                className = qname;
             }
         }
 
         return RefType.v(className);
     }
-    
+
     /**
      * Modifier Creation
      */
-	public static int getModifier(PsiModifierListOwner owner) {
+    public static int getModifier(PsiModifierListOwner owner) {
 
-		int modifier = 0;
-		
-		if (owner.hasModifierProperty("public")){
-			modifier = modifier | soot.Modifier.PUBLIC;	
-		}
-		if (owner.hasModifierProperty("private")){
-			modifier = modifier | soot.Modifier.PRIVATE;
-		}
-		if (owner.hasModifierProperty("protected")){
-			modifier = modifier | soot.Modifier.PROTECTED;
-		}
-		if (owner.hasModifierProperty("final")){
-			modifier = modifier | soot.Modifier.FINAL;
-		}
-		if (owner.hasModifierProperty("static")){
-			modifier = modifier | soot.Modifier.STATIC;
-		}
-		if (owner.hasModifierProperty("native")){
-			modifier = modifier | soot.Modifier.NATIVE;
-		}
-		if (owner.hasModifierProperty("abstract")){
-			modifier = modifier | soot.Modifier.ABSTRACT;
-		}
-		if (owner.hasModifierProperty("volatile")){
-			modifier = modifier | soot.Modifier.VOLATILE;
-		}
-		if (owner.hasModifierProperty("transient")){
-			modifier = modifier | soot.Modifier.TRANSIENT;
-		}
-		if (owner.hasModifierProperty("synchronized")){
-			modifier = modifier | soot.Modifier.SYNCHRONIZED;
-		}
-		if (owner instanceof PsiClass && ((PsiClass) owner).isInterface()){
-			modifier = modifier | soot.Modifier.INTERFACE;
-		}
+        int modifier = 0;
+
+        if (owner.hasModifierProperty("public")){
+            modifier = modifier | soot.Modifier.PUBLIC;
+        }
+        if (owner.hasModifierProperty("private")){
+            modifier = modifier | soot.Modifier.PRIVATE;
+        }
+        if (owner.hasModifierProperty("protected")){
+            modifier = modifier | soot.Modifier.PROTECTED;
+        }
+        if (owner.hasModifierProperty("final")){
+            modifier = modifier | soot.Modifier.FINAL;
+        }
+        if (owner.hasModifierProperty("static")){
+            modifier = modifier | soot.Modifier.STATIC;
+        }
+        if (owner.hasModifierProperty("native")){
+            modifier = modifier | soot.Modifier.NATIVE;
+        }
+        if (owner.hasModifierProperty("abstract")){
+            modifier = modifier | soot.Modifier.ABSTRACT;
+        }
+        if (owner.hasModifierProperty("volatile")){
+            modifier = modifier | soot.Modifier.VOLATILE;
+        }
+        if (owner.hasModifierProperty("transient")){
+            modifier = modifier | soot.Modifier.TRANSIENT;
+        }
+        if (owner.hasModifierProperty("synchronized")){
+            modifier = modifier | soot.Modifier.SYNCHRONIZED;
+        }
+        if (owner instanceof PsiClass && ((PsiClass) owner).isInterface()){
+            modifier = modifier | soot.Modifier.INTERFACE;
+        }
         if (owner.hasModifierProperty("strictfp")) {
             modifier = modifier | soot.Modifier.STRICTFP;
         }
-		return modifier;
-	}
+        return modifier;
+    }
 
     public static boolean isLocalReference(PsiExpression expression) {
         if (!(expression instanceof PsiReferenceExpression)) return false;
@@ -551,5 +560,54 @@ public class Util {
 
     public static void addPsiTags(Host host, final PsiElement element) {
         host.addTag(new PsiTag(element));
+    }
+
+    public static String getJavaClassName(InitialResolver resolver,
+            PsiClass cls) {
+        if (PsiUtil.isLocalClass(cls)) {
+            String name = getLocalClassName(resolver, cls);
+            if (name == null) {
+                throw new IllegalArgumentException("No Soot name for local class: "
+                        + cls.getName());
+            }
+            return name;
+        }
+        if (cls instanceof PsiAnonymousClass) {
+            PsiAnonymousClass acls = (PsiAnonymousClass) cls;
+
+            String name = getAnonymousClassName(resolver, acls);
+            if (name == null) {
+                throw new IllegalArgumentException("No Soot name for anonymous subclass of "
+                        + acls.getBaseClassType().resolve().getQualifiedName());
+            }
+            return name;
+        }
+        PsiClass outer = getOuterClass(cls);
+        if (outer == null) {
+            return cls.getQualifiedName();
+        } else {
+            return getJavaClassName(resolver, outer) + "$" + cls.getName();
+        }
+    }
+
+    public static String getAnonymousClassName(InitialResolver resolver,
+            PsiAnonymousClass acls) {
+        return resolver.getAnonClassMap().getVal(acls);
+    }
+
+    public static String getLocalClassName(InitialResolver resolver,
+            PsiClass cls) {
+        if (!PsiUtil.isLocalClass(cls)) {
+            throw new IllegalArgumentException("class " + cls.getName() + " is not a local class");
+        }
+        return resolver.getLocalClassMap().getVal(cls);
+    }
+
+    public static PsiClass getOuterClass(PsiClass cls) {
+        PsiClass outer = cls.getContainingClass();
+        if (outer == null) {
+            outer = PsiTreeUtil.getParentOfType(cls, PsiClass.class);
+        }
+        return outer;
     }
 }

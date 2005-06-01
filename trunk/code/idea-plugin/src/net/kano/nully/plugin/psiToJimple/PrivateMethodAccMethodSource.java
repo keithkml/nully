@@ -23,13 +23,25 @@ import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiParameter;
 import soot.Type;
 import soot.Local;
+import soot.Body;
+import soot.SootMethod;
+import soot.VoidType;
+import soot.SootMethodRef;
+import soot.Scene;
+import soot.RefType;
+import soot.jimple.Jimple;
+import soot.jimple.ParameterRef;
+import soot.jimple.Stmt;
+import soot.jimple.InvokeExpr;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 public class PrivateMethodAccMethodSource implements soot.MethodSource {
+    private InitialResolver resolver;
 
-    public PrivateMethodAccMethodSource(PsiMethod methInst){
+    public PrivateMethodAccMethodSource(InitialResolver resolver, PsiMethod methInst){
+        this.resolver = resolver;
         this.methodInst = methInst;
     }
     private PsiMethod methodInst;
@@ -41,29 +53,29 @@ public class PrivateMethodAccMethodSource implements soot.MethodSource {
     private boolean isCallParamType(soot.Type sootType) {
         for (PsiParameter param : methodInst.getParameterList()
                 .getParameters()) {
-            soot.Type compareType = Util.getSootType(param.getType());
+            soot.Type compareType = Util.getSootType(resolver, param.getType());
             if (compareType.equals(sootType)) return true;
         }
         return false;
     }
     
-    public soot.Body getBody(soot.SootMethod sootMethod, String phaseName){
+    public Body getBody(SootMethod sootMethod, String phaseName){
 
-        soot.Body body = soot.jimple.Jimple.v().newBody(sootMethod);
+        Body body = Jimple.v().newBody(sootMethod);
         LocalGenerator lg = new LocalGenerator(body);
 
-        soot.Local base = null;
+        Local base = null;
         List<Local> methParams = new ArrayList<Local>();
         List<Type> methParamsTypes = new ArrayList<Type>();
         // create parameters
         Iterator paramIt = sootMethod.getParameterTypes().iterator();
         int paramCounter = 0;
         while (paramIt.hasNext()) {
-            soot.Type sootType = (soot.Type)paramIt.next();
-            soot.Local paramLocal = lg.generateLocal(sootType);
+            Type sootType = (Type)paramIt.next();
+            Local paramLocal = lg.generateLocal(sootType);
             //body.getLocals().add(paramLocal);
-            soot.jimple.ParameterRef paramRef = soot.jimple.Jimple.v().newParameterRef(sootType, paramCounter);
-            soot.jimple.Stmt stmt = soot.jimple.Jimple.v().newIdentityStmt(paramLocal, paramRef);
+            ParameterRef paramRef = Jimple.v().newParameterRef(sootType, paramCounter);
+            Stmt stmt = Jimple.v().newIdentityStmt(paramLocal, paramRef);
             body.getUnits().add(stmt);
             if (!isCallParamType(sootType)){
                 base = paramLocal;
@@ -76,46 +88,46 @@ public class PrivateMethodAccMethodSource implements soot.MethodSource {
         }
 
         // create return type local
-        soot.Type type = Util.getSootType(methodInst.getReturnType());
+        Type type = Util.getSootType(resolver, methodInst.getReturnType());
 
-        soot.Local returnLocal = null;
-        if (!(type instanceof soot.VoidType)){
+        Local returnLocal = null;
+        if (!(type instanceof VoidType)){
             returnLocal = lg.generateLocal(type);
             //body.getLocals().add(returnLocal);
         }
 
         // assign local to meth
-        Type methodCls = Util.getSootType(methodInst.getContainingClass());
+        Type methodCls = Util.getSootType(resolver, methodInst.getContainingClass());
         boolean isStatic = methodInst.hasModifierProperty("static");
-        soot.SootMethodRef meth = soot.Scene.v()
-                .makeMethodRef(((soot.RefType)methodCls).getSootClass(),
+        SootMethodRef meth = Scene.v()
+                .makeMethodRef(((RefType)methodCls).getSootClass(),
                 methodInst.getName(), methParamsTypes,
-                Util.getSootType(methodInst.getReturnType()), isStatic);
+                Util.getSootType(resolver, methodInst.getReturnType()), isStatic);
 
-        soot.jimple.InvokeExpr invoke = null;
+        InvokeExpr invoke = null;
         if (isStatic) {
-            invoke = soot.jimple.Jimple.v().newStaticInvokeExpr(meth, methParams);
+            invoke = Jimple.v().newStaticInvokeExpr(meth, methParams);
         }
         else {
-            invoke = soot.jimple.Jimple.v().newSpecialInvokeExpr(base, meth, methParams);
+            invoke = Jimple.v().newSpecialInvokeExpr(base, meth, methParams);
         }
 
-        soot.jimple.Stmt stmt = null;
-        if (!(type instanceof soot.VoidType)){
-            stmt = soot.jimple.Jimple.v().newAssignStmt(returnLocal, invoke);
+        Stmt stmt = null;
+        if (!(type instanceof VoidType)){
+            stmt = Jimple.v().newAssignStmt(returnLocal, invoke);
         }
         else{
-            stmt = soot.jimple.Jimple.v().newInvokeStmt(invoke);
+            stmt = Jimple.v().newInvokeStmt(invoke);
         }
         body.getUnits().add(stmt);
 
         //return local
-        soot.jimple.Stmt retStmt = null;
-        if (!(type instanceof soot.VoidType)) {
-            retStmt = soot.jimple.Jimple.v().newReturnStmt(returnLocal);
+        Stmt retStmt = null;
+        if (!(type instanceof VoidType)) {
+            retStmt = Jimple.v().newReturnStmt(returnLocal);
         }
         else {
-            retStmt = soot.jimple.Jimple.v().newReturnVoidStmt();
+            retStmt = Jimple.v().newReturnVoidStmt();
         }
         body.getUnits().add(retStmt);
 

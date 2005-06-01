@@ -21,7 +21,7 @@
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
  *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
  *  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-// *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
  *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
  *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
  *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
@@ -61,6 +61,8 @@ import static net.kano.nully.plugin.analysis.nulls.NullProblemType.NULL_ASSIGNME
 import static net.kano.nully.plugin.analysis.nulls.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
 import net.kano.nully.plugin.analysis.nulls.NullValueProblem;
 import net.kano.nully.plugin.analysis.nulls.NullableDereferenceProblem;
+import net.kano.nully.plugin.analysis.nulls.DefinitelyNullDereferenceProblem;
+import net.kano.nully.plugin.analysis.nulls.NullDereferenceProblem;
 import net.kano.nully.plugin.analysis.nulls.psipreprocess.PreparerForSoot;
 import org.jdom.DataConversionException;
 import org.jdom.Element;
@@ -70,11 +72,10 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
-public class NullProblemInspector
+public class NewNullProblemInspector
         extends ProblemFinderBasedInspector<NullAnalysisProblemFinder, NullProblem> {
-    private static final Logger LOGGER = Logger.getInstance(NullProblemInspector.class.getName());
-
-    //TOLATER: make more generic soot tag -> psi userdata system
+    private static final Logger LOGGER
+            = Logger.getInstance(NewNullProblemInspector.class.getName());
 
     private NullInspectorOptions options = new NullInspectorOptions();
     private static final String PROP_ONLY_NULLABLE = "onlyNullable";
@@ -118,8 +119,7 @@ public class NullProblemInspector
         return EnumSet.of(InspectionType.FILE);
     }
 
-    protected void prepareContextForFile(AnalysisContext context,
-            PsiJavaFile jfile) {
+    protected void prepareContext(AnalysisContext context, PsiJavaFile jfile) {
         context.setOptions(options);
 
         PreparerForSoot preparer = new PreparerForSoot(context);
@@ -127,9 +127,14 @@ public class NullProblemInspector
         preparer.prepareForFileAnalysis(jfile);
 
         SootTools.lockSootGlobally();
+
+        context.setFileOrig(jfile);
+
         CodeAnalyzer analyzer = new CodeAnalyzer();
         context.setAnalyzer(analyzer);
         analyzer.analyze(context);
+
+        System.out.println("temp");
     }
 
     protected void cleanUp(AnalysisContext context) {
@@ -154,30 +159,34 @@ public class NullProblemInspector
         if (problem instanceof NullValueProblem) {
             NullValueProblem nvProblem = (NullValueProblem) problem;
 
-            if (!onlyNullable || SootTools.hasNullableTag(nvProblem.getValue())) {
+            if (nvProblem.isDefinitelyNull() || !onlyNullable
+                    || SootTools.hasNullableTag(nvProblem.getValue())) {
                 NullProblemType type = nvProblem.getType();
 
+                String maybeString = nvProblem.isDefinitelyNull() ? "is" : "may be";
                 if (type == NULL_ARGUMENT_FOR_NONNULL_PARAMETER) {
                     PsiMethod method = PsiTools.getCalledMethod(element);
                     desc = "<HTML>Argument passed to <B>" + method.getName()
-                            + "()</B> may be illegally null";
+                            + "()</B> " + maybeString + " illegally null";
 
                 } else if (type == NULL_ASSIGNMENT_TO_NONNULL_VARIABLE) {
                     PsiVariable var = PsiTools.getAssignedVariable(element);
                     desc = "<HTML>Value assigned to <B>" + var.getName()
-                                        + "</B> may be illegally null";
+                                        + "</B> " + maybeString + " illegally null";
 
                 } else if (type == NULL_RETURN_IN_NONNULL_METHOD) {
-                    desc = "Returned value may be ilegally null";
+                    desc = "Returned value " + maybeString + " ilegally null";
                 }
             }
 
-        } else if (problem instanceof NullableDereferenceProblem) {
-            NullableDereferenceProblem nullableProblem = (NullableDereferenceProblem) problem;
-            PsiExpression ref = nullableProblem.getReferenceExpression();
-            String problemDesc = getRefProblemDescription(ref);
+        } else if (problem instanceof NullableDereferenceProblem
+                || problem instanceof DefinitelyNullDereferenceProblem) {
+            NullDereferenceProblem nullableProblem = (NullDereferenceProblem) problem;
+            String problemDesc = getRefProblemDescription(nullableProblem);
             String useDesc = getUseDescription(element);
-            desc = problemDesc + "; " + useDesc + " may produce NullPointerException";
+            String mayStr = nullableProblem.isDefinitelyNull() ? "will" : "may";
+            desc = "<HTML>" + problemDesc + "; " + useDesc + " "+mayStr
+                    +" produce NullPointerException";
         }
 
         if (desc != null) {
@@ -186,8 +195,10 @@ public class NullProblemInspector
         }
     }
 
-    private String getRefProblemDescription(PsiExpression ref) {
-        String problemDesc = "Value may be null";
+    private String getRefProblemDescription(NullDereferenceProblem problem) {
+        PsiExpression ref = problem.getReferenceExpression();
+        String maybeStr = problem.isDefinitelyNull() ? "is" : "may be";
+        String problemDesc = "Value " + maybeStr + " null";
         if (ref instanceof PsiMethodCallExpression) {
             PsiMethodCallExpression call = (PsiMethodCallExpression) ref;
             problemDesc = "<B>" + call.resolveMethod().getName() + "()</B> may return null";
@@ -197,7 +208,7 @@ public class NullProblemInspector
             PsiElement resolved = refExp.resolve();
             if (resolved instanceof PsiVariable) {
                 PsiVariable var = (PsiVariable) resolved;
-                problemDesc = "Value of <B>" + var.getName() + "</B> may be null";
+                problemDesc = "Value of <B>" + var.getName() + "</B> " + maybeStr + " null";
             }
         }
         return problemDesc;

@@ -70,6 +70,7 @@ import com.intellij.psi.PsiTryStatement;
 import com.intellij.psi.PsiType;
 import com.intellij.psi.PsiVariable;
 import com.intellij.psi.PsiWhileStatement;
+import com.intellij.psi.PsiParameterList;
 import com.intellij.psi.tree.IElementType;
 import soot.Local;
 import soot.RefType;
@@ -86,6 +87,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Stack;
+import java.util.Collections;
 
 public abstract class JBB3 extends JBB2 {
     List<Trap> exceptionTable;       // list of exceptions
@@ -96,7 +98,7 @@ public abstract class JBB3 extends JBB2 {
     Map<String,soot.jimple.Stmt> labelContinueMap; // for continue label --> nop to jump to
     Local outerClassParamLocal;    // outer class this
 
-    
+
 
     protected void handleAssert(soot.SootMethod sootMethod){
         PsiMethodSource source = ((PsiMethodSource) sootMethod.getSource());
@@ -123,7 +125,7 @@ public abstract class JBB3 extends JBB2 {
             soot.SootClass currentClass = body.getMethod().getDeclaringClass();
             soot.SootFieldRef sootField = soot.Scene.v()
                     .makeFieldRef(currentClass, fieldName,
-                    Util.getSootType(field.getType()),
+                    Util.getSootType(initialResolver, field.getType()),
                     field.hasModifierProperty("static"));
 
             soot.Local base = specialThisLocal;
@@ -192,7 +194,7 @@ public abstract class JBB3 extends JBB2 {
                         .getDeclaringClass();
                 soot.SootFieldRef sootField = soot.Scene.v()
                         .makeFieldRef(currentClass, fieldName,
-                        Util.getSootType(field.getType()),
+                        Util.getSootType(initialResolver, field.getType()),
                         field.getModifierList().hasModifierProperty("static"));
                 soot.jimple.FieldRef fieldRef = soot.jimple.Jimple.v()
                         .newStaticFieldRef(sootField);
@@ -778,7 +780,7 @@ public abstract class JBB3 extends JBB2 {
             body.getUnits().add(catchEndGoto);
 
 
-            Type sootType = Util.getSootType(catchBlock.getCatchType());
+            Type sootType = Util.getSootType(initialResolver, catchBlock.getCatchType());
 
             addToExceptionList(noop1, noop2, noop3,
                     soot.Scene.v().getSootClass(sootType.toString()));
@@ -880,7 +882,7 @@ public abstract class JBB3 extends JBB2 {
 
             gotoMap.put(catchFinallyNoop, beforeCatchEndGotoNoop);
 
-            Type sootType = Util.getSootType(catchBlock.getCatchType());
+            Type sootType = Util.getSootType(initialResolver, catchBlock.getCatchType());
 
             addToExceptionList(noop1, noop2, noop3,
                     soot.Scene.v().getSootClass(sootType.toString()));
@@ -979,7 +981,7 @@ public abstract class JBB3 extends JBB2 {
         paramTypes.add(param.getType());
         soot.SootMethod meth = new soot.SootMethod(name, paramTypes, param.getType(), soot.Modifier.STATIC);
         PrivateFieldSetMethodSource pfsms = new PrivateFieldSetMethodSource(
-            Util.getSootType(field.getType()),
+            Util.getSootType(initialResolver, field.getType()),
             field.getName(),
             isStatic
             );
@@ -1012,9 +1014,9 @@ public abstract class JBB3 extends JBB2 {
         }
 
         soot.SootMethod meth = new soot.SootMethod(name, paramTypes,
-                Util.getSootType(field.getType()),  soot.Modifier.STATIC);
+                Util.getSootType(initialResolver, field.getType()),  soot.Modifier.STATIC);
         PrivateFieldAccMethodSource pfams = new PrivateFieldAccMethodSource(
-            Util.getSootType(field.getType()),
+            Util.getSootType(initialResolver, field.getType()),
             field.getName(),
             isStatic,
             conClass
@@ -1050,8 +1052,9 @@ public abstract class JBB3 extends JBB2 {
         List<Type> sootParamsTypes = getSootParamsTypes(call);
         paramTypes.addAll(sootParamsTypes);
         soot.SootMethod meth = new soot.SootMethod(name, paramTypes,
-                Util.getSootType(method.getReturnType()),  soot.Modifier.STATIC);
+                Util.getSootType(initialResolver, method.getReturnType()),  soot.Modifier.STATIC);
         PrivateMethodAccMethodSource pmams = new PrivateMethodAccMethodSource(
+                initialResolver,
             method
         );
 
@@ -1365,9 +1368,12 @@ public abstract class JBB3 extends JBB2 {
      */
     protected List<Type> getSootParamsTypes(PsiCallExpression call) {
         List<Type> sootParamsTypes = new ArrayList<Type>();
-        for (PsiParameter next : call.resolveMethod()
-                .getParameterList().getParameters()) {
-            sootParamsTypes.add(Util.getSootType(next.getType()));
+        PsiMethod method = call.resolveMethod();
+        if (method == null) return Collections.emptyList();
+        PsiParameterList parameterList = method
+                .getParameterList();
+        for (PsiParameter next : parameterList.getParameters()) {
+            sootParamsTypes.add(Util.getSootType(initialResolver, next.getType()));
         }
         return sootParamsTypes;
     }
@@ -1379,7 +1385,7 @@ public abstract class JBB3 extends JBB2 {
      */
     private void createLocalClassDecl(PsiDeclarationStatement cDecl) {
         PsiClass cls = (PsiClass) cDecl.getDeclaredElements()[0];
-        String name = Util.getSootType(cls).toString();
+        String name = Util.getSootType(initialResolver, cls).toString();
         SootClass declaringClass = body.getMethod().getDeclaringClass();
         if (!initialResolver.hasClassInnerTag(declaringClass, name)){
             Util.addInnerClassTag(declaringClass, name, null, cls.getName(),

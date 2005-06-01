@@ -55,6 +55,7 @@ import com.intellij.psi.PsiVariable;
 import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.psi.util.PsiSuperMethodUtil;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.psi.util.PsiUtil;
 import com.intellij.util.IncorrectOperationException;
 import net.kano.nully.annotations.NonNull;
 import soot.Type;
@@ -173,6 +174,9 @@ public final class PsiTools {
     }
 
     public static String getJavaNameForClass(@NonNull PsiClass cls) {
+        if (PsiUtil.isLocalOrAnonymousClass(cls)) {
+            throw new IllegalArgumentException("local or anonymous: " + cls);
+        }
         PsiClass outer = cls.getContainingClass();
         if (outer == null) {
             return cls.getQualifiedName();

@@ -31,40 +31,15 @@
  *
  */
 
-package net.kano.nully.plugin.inspection;
+package net.kano.nully.plugin.analysis.nulls;
 
-import com.intellij.codeInspection.InspectionManager;
-import com.intellij.codeInspection.ProblemDescriptor;
-import net.kano.nully.annotations.NullyInstrumented;
-import net.kano.nully.plugin.analysis.NullyInstrumentedFinder;
-import net.kano.nully.plugin.analysis.NullyInstrumentedProblem;
-import net.kano.nully.plugin.analysis.AnalysisContext;
+import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiExpression;
+import soot.ValueBox;
 
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Set;
-
-public class NullyInstrumentedInspector extends ProblemFinderBasedInspector<NullyInstrumentedFinder, NullyInstrumentedProblem> {
-    protected NullyInstrumentedFinder getFinderInstance() {
-        return new NullyInstrumentedFinder();
-    }
-
-    protected Set<InspectionType> getInspectionTypes() {
-        return EnumSet.of(InspectionType.FILE);
-    }
-
-    protected void addProblems(AnalysisContext context,
-            InspectionManager manager,
-            List<ProblemDescriptor> problems,
-            NullyInstrumentedProblem problem) {
-    }
-
-    public String getDisplayName() {
-        return "Illegal @" + NullyInstrumented.class.getSimpleName()
-                + " annotation";
-    }
-
-    public String getShortName() {
-        return "NullyInstrumented";
+public class NullableDereferenceProblem extends NullDereferenceProblem {
+    public NullableDereferenceProblem(PsiElement element, PsiExpression ref,
+            ValueBox value, boolean definitelyNull) {
+        super(element, ref, value, definitelyNull);
     }
 }

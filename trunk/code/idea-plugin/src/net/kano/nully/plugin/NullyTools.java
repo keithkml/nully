@@ -144,6 +144,7 @@ public final class NullyTools {
         for (; owner != null; owner = PsiTreeUtil.getParentOfType(owner,
                 PsiModifierListOwner.class, true)) {
             PsiModifierList mods = owner.getModifierList();
+            if (mods == null) continue;
             PsiAnnotation anno = mods.findAnnotation(SuppressNullChecks.class.getName());
             if (anno == null) continue;
             PsiAnnotationParameterList params = anno.getParameterList();
@@ -194,7 +195,6 @@ public final class NullyTools {
         return new PossiblyNullReferenceInfo(origBad, origHighlight, tag.isDefinitelyNull());
     }
 
-    //TODO: rename
     public static PossiblyNullReferenceInfo getReferenceInfo(AnalysisContext context,
             Unit unit, ReferencedElementInfo refInfo, MayBeNullTag tag) {
         PsiModifierListOwner referenced = refInfo.getReferenced();

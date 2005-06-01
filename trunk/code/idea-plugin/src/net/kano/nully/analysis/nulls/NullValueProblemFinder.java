@@ -38,7 +38,6 @@ import com.intellij.psi.PsiAssignmentExpression;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiExpression;
 import com.intellij.psi.PsiExpressionList;
-import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiLocalVariable;
 import com.intellij.psi.PsiMember;
 import com.intellij.psi.PsiMethod;
@@ -49,7 +48,6 @@ import com.intellij.psi.PsiVariable;
 import com.intellij.psi.util.PsiTreeUtil;
 import net.kano.nully.annotations.NonNull;
 import net.kano.nully.plugin.NullyTools;
-import net.kano.nully.plugin.OffsetsTracker;
 import net.kano.nully.plugin.PsiTools;
 import net.kano.nully.plugin.SootTools;
 import net.kano.nully.plugin.analysis.AnalysisContext;
@@ -57,6 +55,7 @@ import net.kano.nully.plugin.analysis.ProblemFinder;
 import static net.kano.nully.plugin.analysis.nulls.NullProblemType.NULL_ARGUMENT_FOR_NONNULL_PARAMETER;
 import static net.kano.nully.plugin.analysis.nulls.NullProblemType.NULL_ASSIGNMENT_TO_NONNULL_VARIABLE;
 import static net.kano.nully.plugin.analysis.nulls.NullProblemType.NULL_RETURN_IN_NONNULL_METHOD;
+import net.kano.nully.plugin.analysis.nulls.soot.MayBeNullTag;
 import soot.Body;
 import soot.SootMethod;
 import soot.Unit;
@@ -65,7 +64,6 @@ import soot.jimple.AssignStmt;
 import soot.jimple.InvokeExpr;
 import soot.jimple.InvokeStmt;
 import soot.jimple.ReturnStmt;
-import soot.tagkit.SourceLnPosTag;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -99,16 +97,16 @@ public class NullValueProblemFinder implements ProblemFinder<NullValueProblem> {
             if (unit instanceof AssignStmt) {
                 AssignStmt assignStmt = (AssignStmt) unit;
                 ValueBox rightBox = assignStmt.getRightOpBox();
-                if (SootTools.hasMayBeNullTag(rightBox)) {
-                    findNullAssignments(assignStmt);
+                MayBeNullTag tag = SootTools.getMayBeNullTag(rightBox);
+                if (tag != null) {
+                    findNullAssignments(assignStmt, tag);
                 }
 
                 if (rightBox.getValue() instanceof InvokeExpr) {
                     findNullArgs(assignStmt, rightBox);
                 }
             } else if (unit instanceof ReturnStmt) {
-                PsiElement el = context.getTracker().getElementAtPosition(context.getFileCopy(),
-                        SootTools.getSourceTag(unit));
+                PsiElement el = SootTools.getPsiElement(unit);
                 PsiMethod method = PsiTreeUtil.getParentOfType(el, PsiMethod.class, false);
                 if (method != null) {
                     tagNullReturn((ReturnStmt) unit, method);
@@ -127,16 +125,14 @@ public class NullValueProblemFinder implements ProblemFinder<NullValueProblem> {
     private synchronized void tagNullReturn(@NonNull ReturnStmt retStmt,
             @NonNull PsiMethod methodCopy) {
         ValueBox retBox = retStmt.getOpBox();
-        if (!SootTools.hasMayBeNullTag(retBox)) return;
+        MayBeNullTag tag = SootTools.getMayBeNullTag(retBox);
+        if (tag == null) return;
 
         PsiMethod method = context.getOriginalElement(methodCopy);
         if (!NullyTools.hasNonNullAnnotation(method)) return;
 
-        SourceLnPosTag srcTag = SootTools.getSourceTag(retBox);
-        if (srcTag == null) return;
-
-        int offset = SootTools.getOffset(context.getTracker(), srcTag);
-        PsiElement el = context.getFileCopy().findElementAt(offset);
+        PsiElement el = SootTools.getPsiElement(retBox);
+        if (el == null) return;
         PsiReturnStatement psiRetCopy = PsiTreeUtil.getParentOfType(el,
                 PsiReturnStatement.class, false);
         if (psiRetCopy == null) return;
@@ -146,32 +142,28 @@ public class NullValueProblemFinder implements ProblemFinder<NullValueProblem> {
         // are inserted when stripping
         if (psiRet == null) return;
         PsiExpression retVal = psiRet.getReturnValue();
-        problems.add(new NullValueProblem(retVal, NULL_RETURN_IN_NONNULL_METHOD));
+        problems.add(new NullValueProblem(retVal, NULL_RETURN_IN_NONNULL_METHOD,
+                retBox, tag.isDefinitelyNull()));
     }
 
     private synchronized void findNullArgs(@NonNull InvokeStmt invokeStmt) {
-        SourceLnPosTag tag = SootTools.getSourceTag(invokeStmt);
-        if (tag == null) return;
+        PsiElement el = SootTools.getPsiElement(invokeStmt);
+        if (el == null) return;
 
-        findNullArgs(invokeStmt.getInvokeExpr(), tag);
+        findNullArgs(invokeStmt.getInvokeExpr(), el);
     }
 
     private synchronized void findNullArgs(@NonNull Unit unit, @NonNull ValueBox invokeBox) {
         InvokeExpr invokeExpr = (InvokeExpr) invokeBox.getValue();
-        SourceLnPosTag srcTag = SootTools.getSourceTag(invokeBox);
-        if (srcTag == null) srcTag = SootTools.getSourceTag(unit);
-        if (srcTag == null) return;
+        PsiElement el = SootTools.getPsiElement(invokeBox);
+        if (el == null) el = SootTools.getPsiElement(unit);
+        if (el == null) return;
 
-        findNullArgs(invokeExpr, srcTag);
+        findNullArgs(invokeExpr, el);
     }
 
     private synchronized void findNullArgs(@NonNull InvokeExpr invokeExpr,
-            @NonNull SourceLnPosTag srcTag) {
-        OffsetsTracker tracker = context.getTracker();
-        int offset = SootTools.getOffset(tracker, srcTag);
-
-        PsiJavaFile fileCopy = context.getFileCopy();
-        PsiElement el = fileCopy.findElementAt(offset);
+            @NonNull PsiElement el) {
         PsiMethodCallExpression call = PsiTreeUtil.getParentOfType(el,
                 PsiMethodCallExpression.class, false);
         if (call == null) {
@@ -198,22 +190,23 @@ public class NullValueProblemFinder implements ProblemFinder<NullValueProblem> {
         for (int i = 0; i < params.length; i++) {
             PsiParameter param = params[i];
             ValueBox argBox = invokeExpr.getArgBox(i);
-            if (NullyTools.hasNonNullAnnotation(param)
-                        && SootTools.hasMayBeNullTag(argBox)) {
-                // we found a possibly null argument for nonnull parameter
-                SourceLnPosTag argSrcTag = SootTools.getSourceTag(argBox);
-                if (argSrcTag == null) continue;
+            if (NullyTools.hasNonNullAnnotation(param)) {
+                MayBeNullTag tag = SootTools.getMayBeNullTag(argBox);
+                if (tag != null) {
+                    // we found a possibly null argument for nonnull parameter
+                    PsiElement argel = SootTools.getPsiElement(argBox);
+                    if (argel == null) continue;
 
-                int argOffset = SootTools.getOffset(tracker, argSrcTag);
-                PsiElement argel = fileCopy.findElementAt(argOffset);
-                if (argel == null) continue;
-                argel = findArgumentElementParent(call, argel);
-                if (argel == null) continue;
+                    argel = findArgumentElementParent(call, argel);
+                    if (argel == null) continue;
 
-                argel = context.getOriginalElement(argel);
-                if (argel == null) continue;
+                    argel = context.getOriginalElement(argel);
+                    if (argel == null) continue;
 
-                problems.add(new NullValueProblem(argel, NULL_ARGUMENT_FOR_NONNULL_PARAMETER));
+                    problems.add(new NullValueProblem(argel,
+                            NULL_ARGUMENT_FOR_NONNULL_PARAMETER, argBox,
+                            tag.isDefinitelyNull()));
+                }
             }
         }
     }
@@ -238,26 +231,21 @@ public class NullValueProblemFinder implements ProblemFinder<NullValueProblem> {
         return argel;
     }
 
-    private synchronized void findNullAssignments(@NonNull AssignStmt assignStmt) {
+    private synchronized void findNullAssignments(@NonNull AssignStmt assignStmt,
+            MayBeNullTag tag) {
         ValueBox rightBox = assignStmt.getRightOpBox();
         ValueBox varBox = assignStmt.getLeftOpBox();
-        SourceLnPosTag srcTag = SootTools.getSourceTag(varBox);
-        if (srcTag == null) srcTag = SootTools.getSourceTag(assignStmt);
-        if (srcTag == null) return;
+        PsiElement leftEl = SootTools.getPsiElement(varBox);
+        if (leftEl == null) leftEl = SootTools.getPsiElement(assignStmt);
+        if (leftEl == null) return;
 
-        PsiJavaFile fileCopy = context.getFileCopy();
-
-        OffsetsTracker tracker = context.getTracker();
-        int offset = SootTools.getOffset(tracker, srcTag);
-        PsiElement leftEl = fileCopy.findElementAt(offset);
         PsiVariable variable = PsiTools.getReferencedVariable(leftEl);
         if (variable == null) return;
         PsiVariable origVariable = context.getOriginalElement(variable);
+        if (origVariable == null) origVariable = variable;
         if (!NullyTools.hasNonNullAnnotation(origVariable)) return;
 
-        SourceLnPosTag tag = SootTools.getSourceTag(rightBox);
-        int roff = SootTools.getOffset(tracker, tag);
-        PsiElement rightEl = fileCopy.findElementAt(roff);
+        PsiElement rightEl = SootTools.getPsiElement(rightBox);
         PsiAssignmentExpression assignment
                 = PsiTreeUtil.getParentOfType(rightEl,
                         PsiAssignmentExpression.class, false);
@@ -274,7 +262,9 @@ public class NullValueProblemFinder implements ProblemFinder<NullValueProblem> {
             hilite = context.getOriginalElement(initializer);
         }
         if (hilite != null) {
-            problems.add(new NullValueProblem(hilite, NULL_ASSIGNMENT_TO_NONNULL_VARIABLE));
+            problems.add(new NullValueProblem(hilite,
+                    NULL_ASSIGNMENT_TO_NONNULL_VARIABLE, rightBox,
+                    tag.isDefinitelyNull()));
         }
     }
 }

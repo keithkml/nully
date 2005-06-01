@@ -23,22 +23,23 @@ import com.intellij.psi.PsiClassInitializer;
 import com.intellij.psi.PsiClassType;
 import com.intellij.psi.PsiCodeBlock;
 import com.intellij.psi.PsiConstantEvaluationHelper;
+import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiField;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiNewExpression;
 import com.intellij.psi.PsiParameter;
 import com.intellij.psi.PsiPrimitiveType;
+import com.intellij.psi.PsiRecursiveElementVisitor;
 import com.intellij.psi.PsiType;
 import com.intellij.psi.PsiVariable;
-import com.intellij.psi.PsiElement;
 import com.intellij.psi.util.PsiUtil;
-import soot.Modifier;
 import soot.RefType;
 import soot.SootClass;
 import soot.SootField;
 import soot.SootMethod;
 import soot.Type;
+import soot.Modifier;
 import soot.tagkit.Host;
 
 import java.util.ArrayList;
@@ -48,11 +49,12 @@ import java.util.List;
 import java.util.Map;
 
 public class ClassResolver {
+    private final InitialResolver initialResolver;
+
     private List<PsiField> staticFieldInits;
     private List<PsiField> fieldInits;
     private List<PsiCodeBlock> initializerBlocks;
     private List<PsiCodeBlock> staticInitializerBlocks;
-    private final InitialResolver initialResolver;
 
     private final SootClass sootClass;
     private final List<Type> references = new ArrayList<Type>();
@@ -66,7 +68,7 @@ public class ClassResolver {
      *  adds source file tag to each sootclass
      */
     protected void addSourceFileTag(soot.SootClass sc){
-        soot.tagkit.SourceFileTag tag = null;
+        soot.tagkit.SourceFileTag tag;
         if (sc.hasTag("SourceFileTag")) {
             tag = (soot.tagkit.SourceFileTag)sc.getTag("SourceFileTag");
         }
@@ -99,11 +101,12 @@ public class ClassResolver {
      * Class Declaration Creation
      */
     private void createClassDecl(PsiClass cDecl){
+        assert Util.getSootType(initialResolver, cDecl).getSootClass().equals(sootClass);
     
         //add outer class tag if neccessary (if class is not top-level)
-        PsiClass outer = cDecl.getContainingClass();
+        PsiClass outer = Util.getOuterClass(cDecl);
         if (outer != null){
-            SootClass outerClass = Util.getSootType(outer).getSootClass();
+            SootClass outerClass = Util.getSootType(initialResolver, outer).getSootClass();
             
             if (initialResolver.getInnerClassInfoMap() == null){
                 initialResolver.setInnerClassInfoMap(new HashMap<SootClass, InnerClassInfo>());
@@ -124,11 +127,11 @@ public class ClassResolver {
             sootClass.setSuperclass(superClass);
         }
         else {
-            sootClass.setSuperclass(Util.getSootType(psiSuper).getSootClass());
-            PsiClass superOuter = psiSuper.getContainingClass();
+            sootClass.setSuperclass(Util.getSootType(initialResolver, psiSuper).getSootClass());
+            PsiClass superOuter = Util.getOuterClass(psiSuper);
             if (superOuter != null){
                 Util.addInnerClassTag(sootClass, sootClass.getName(),
-                        Util.getSootType(superOuter).toString(),
+                        Util.getSootType(initialResolver, superOuter).toString(),
                         psiSuper.getName(), Util.getModifier(psiSuper));
             }
         
@@ -137,7 +140,8 @@ public class ClassResolver {
     
         // implements
         for (PsiClassType type : cDecl.getImplementsListTypes()) {
-            sootClass.addInterface(((soot.RefType)Util.getSootType(type)).getSootClass());
+            sootClass.addInterface(((soot.RefType)Util.getSootType(initialResolver,
+                    type)).getSootClass());
         }
         
         findReferences(cDecl);
@@ -151,7 +155,8 @@ public class ClassResolver {
         if (staticFieldInits != null || staticInitializerBlocks != null) {
             soot.SootMethod clinitMethod;
             if (!sootClass.declaresMethod("<clinit>", new ArrayList(), soot.VoidType.v())) {
-                clinitMethod = new soot.SootMethod("<clinit>", new ArrayList(), soot.VoidType.v(), soot.Modifier.STATIC, new ArrayList());
+                clinitMethod = new soot.SootMethod("<clinit>", new ArrayList(),
+                        soot.VoidType.v(), soot.Modifier.STATIC, new ArrayList());
                 
                 sootClass.addMethod(clinitMethod);
                 PsiMethodSource mSource = new PsiMethodSource(initialResolver);
@@ -181,7 +186,7 @@ public class ClassResolver {
                 }
             }
             if (!info.inStaticMethod()){
-                PsiClass outerType = cDecl.getContainingClass();
+                PsiClass outerType = Util.getOuterClass(cDecl);
                 addOuterClassThisRefToInit(outerType);
                 addOuterClassThisRefField(outerType);
             }
@@ -205,7 +210,7 @@ public class ClassResolver {
         node.acceptChildren(typeListBuilder);
 
         for (PsiClassType type : typeListBuilder.getList()) {
-            references.add(Util.getSootType(type));
+            references.add(Util.getSootType(initialResolver, type));
         }
     }
 
@@ -231,7 +236,8 @@ public class ClassResolver {
             createConstructorDecl(constructor);
         }
         for (PsiClass cls : classBody.getInnerClasses()) {
-            Util.addInnerClassTag(sootClass, Util.getSootType(cls).toString(),
+            Util.addInnerClassTag(sootClass, Util.getSootType(initialResolver,
+                    cls).toString(),
                     sootClass.getName(), cls.getName(),
                     Util.getModifier(cls));
         }
@@ -244,7 +250,7 @@ public class ClassResolver {
     }
 
     private void addOuterClassThisRefField(PsiClass outerType){
-        soot.Type outerSootType = Util.getSootType(outerType);
+        soot.Type outerSootType = Util.getSootType(initialResolver, outerType);
         soot.SootField field = new soot.SootField("this$0", outerSootType,
                 soot.Modifier.PRIVATE | soot.Modifier.FINAL);
         sootClass.addField(field);
@@ -252,7 +258,7 @@ public class ClassResolver {
     }
 
     private void addOuterClassThisRefToInit(PsiClass outerType){
-        soot.Type outerSootType = Util.getSootType(outerType);
+        soot.Type outerSootType = Util.getSootType(initialResolver, outerType);
         for (SootMethod meth : ((Collection<SootMethod>) sootClass.getMethods())) {
             if (meth.getName().equals("<init>")) {
                 List<Type> newParams = new ArrayList<Type>();
@@ -275,14 +281,14 @@ public class ClassResolver {
             if (meth.getName().equals("<init>")) {
                 List<Type> newParams = new ArrayList<Type>();
                 newParams.addAll(meth.getParameterTypes());
-                newParams.add(Util.getSootType(li.getType()));
+                newParams.add(Util.getSootType(initialResolver, li.getType()));
                 meth.setParameterTypes(newParams);
             }
         }
                 
         // add field
         soot.SootField sf = new soot.SootField("val$"+li.getName(),
-                Util.getSootType(li.getType()),
+                Util.getSootType(initialResolver, li.getType()),
                 soot.Modifier.FINAL | soot.Modifier.PRIVATE);
         sootClass.addField(sf);
         finalFields.add(sf);
@@ -320,7 +326,7 @@ public class ClassResolver {
             for (IdentityKey<PsiVariable> identityKey : lInfo.finalLocalsAvail()) {
                 PsiVariable li2 = identityKey.object();
                 if (!sootClass.declaresField("val$" + li2.getName(),
-                        Util.getSootType(li2.getType()))) {
+                        Util.getSootType(initialResolver, li2.getType()))) {
                     IdentityKey<PsiVariable> li2key = new IdentityKey<PsiVariable>(li2);
                     if (!luc.getLocalDecls().contains(li2key)) {
                         addFinals(li2, finalFields);
@@ -334,7 +340,7 @@ public class ClassResolver {
         // possibly eventually to send in the finals
 
         PsiClass superType =  cBody.getSuperClass();
-        while (!Util.getSootType(superType).equals(soot.Scene.v()
+        while (!Util.getSootType(initialResolver, superType).equals(soot.Scene.v()
                 .getSootClass("java.lang.Object").getType())) {
             IdentityKey<PsiClass> superKey = new IdentityKey<PsiClass>(superType);
             if (finalLocalInfo.containsKey(superKey)) {
@@ -342,7 +348,7 @@ public class ClassResolver {
                 for (IdentityKey<PsiVariable> identityKey : lInfo.finalLocalsAvail()) {
                     PsiVariable li2 =  identityKey.object();
                     if (!sootClass.declaresField("val$" + li2.getName(),
-                            Util.getSootType(li2.getType()))) {
+                            Util.getSootType(initialResolver, li2.getType()))) {
                         IdentityKey<PsiVariable> li2key = new IdentityKey<PsiVariable>(li2);
                         if (!luc.getLocalDecls().contains(li2key)) {
                             addFinals(li2, finalFields);
@@ -521,7 +527,7 @@ public class ClassResolver {
         Map<SootClass, InnerClassInfo> innerClassInfoMap = initialResolver.getInnerClassInfoMap();
         while ((innerClassInfoMap != null)
                 && (innerClassInfoMap.containsKey(addToClass))){
-            addToClass = (innerClassInfoMap.get(addToClass)).getOuterClass();
+            addToClass = innerClassInfoMap.get(addToClass).getOuterClass();
         }
         
         // this field is named after the outer class even if the outer
@@ -684,7 +690,8 @@ public class ClassResolver {
             // add fields for all non prim class lits
             for (PsiType type : classLitList) {
                 // field
-                String fieldName = Util.getFieldNameForClassLit(type);
+                String fieldName = Util.getFieldNameForClassLit(initialResolver,
+                        type);
                 soot.Type fieldType = soot.RefType.v("java.lang.Class");
 
                 soot.SootField sootField = new soot.SootField(fieldName,
@@ -710,9 +717,20 @@ public class ClassResolver {
      * Source Creation 
      */
     protected void createSource(PsiJavaFile source){
-        for (PsiClass cls : source.getClasses()) {
-            createClassDecl(cls);
-        }
+        PsiRecursiveElementVisitor visitor = new PsiRecursiveElementVisitor() {
+            public void visitClass(PsiClass psiClass) {
+                super.visitClass(psiClass);
+
+                if (Util.getSootType(initialResolver, psiClass).getSootClass().equals(sootClass)) {
+                    createClassDecl(psiClass);
+                }
+            }
+        };
+        source.accept(visitor);
+
+//        for (PsiClass cls : source.getClasses()) {
+//            createClassDecl(cls);
+//        }
     }
 
     private void handleInnerClassTags(PsiClass classBody){
@@ -742,6 +760,24 @@ public class ClassResolver {
                     outerName, simpleName, access);
             // if this class is an inner class and enclosing class is also
             // an inner class add enclsing class
+/*
+            SootClass outerClass = tag.getOuterClass();
+            while (innerClassInfoMap
+                    .containsKey(outerClass)) {
+                InnerClassInfo tag2 = innerClassInfoMap.get(outerClass);
+                Util.addInnerClassTag(sootClass, outerClass.getName(),
+                        tag2.getInnerType() == InnerClassInfo.ANON ? null
+                                : tag2.getOuterClass().getName(),
+                        tag2.getInnerType() == InnerClassInfo.ANON ? null
+                                : tag2.getSimpleName(),
+                        tag2.getInnerType() == InnerClassInfo.ANON
+                                && soot.Modifier
+                                .isInterface(tag2.getOuterClass()
+                                .getModifiers()) ? soot.Modifier.STATIC
+                                | soot.Modifier.PUBLIC
+                                : outerClass.getModifiers());
+                outerClass = tag2.getOuterClass();
+            }*/
             SootClass outerClass = tag.getOuterClass();
             while (innerClassInfoMap.containsKey(outerClass)) {
                 InnerClassInfo tag2 = innerClassInfoMap.get(outerClass);
@@ -835,7 +871,7 @@ public class ClassResolver {
         //System.out.println("field decl: "+field);
         int modifiers = Util.getModifier(field);
         String name = field.getName();
-        soot.Type sootType = Util.getSootType(field.getType());
+        soot.Type sootType = Util.getSootType(initialResolver, field.getType());
         soot.SootField sootField = new soot.SootField(name, sootType, modifiers);
         sootClass.addField(sootField);
     
@@ -884,11 +920,11 @@ public class ClassResolver {
     /**
      * creates soot params from polyglot formals
      */
-    private static List<Type> createParameters(PsiMethod procedure) {
+    private List<Type> createParameters(PsiMethod procedure) {
         ArrayList<Type> parameters = new ArrayList<Type>();
         for (PsiParameter parameter : procedure.getParameterList()
                 .getParameters()) {
-            parameters.add(Util.getSootType(parameter.getType()));
+            parameters.add(Util.getSootType(initialResolver, parameter.getType()));
         }
         return parameters;
     }
@@ -900,7 +936,7 @@ public class ClassResolver {
         ArrayList<SootClass> exceptions = new ArrayList<SootClass>();
         for (PsiClassType type : procedure.getThrowsList()
                 .getReferencedTypes()) {
-            exceptions.add(((soot.RefType)Util.getSootType(type)).getSootClass());
+            exceptions.add(((soot.RefType)Util.getSootType(initialResolver, type)).getSootClass());
         }
         return exceptions; 
     }
@@ -910,7 +946,7 @@ public class ClassResolver {
             List<Type> parameters, List<SootClass> exceptions){
         
         int modifier = Util.getModifier(method);
-        soot.Type sootReturnType = Util.getSootType(method.getReturnType());
+        soot.Type sootReturnType = Util.getSootType(initialResolver, method.getReturnType());
 
         return new soot.SootMethod(name, parameters,
                 sootReturnType, modifier, exceptions);
@@ -934,10 +970,10 @@ public class ClassResolver {
         }
     }
     
-    private soot.SootMethod createSootConstructor(String name, PsiMethod flags,
+    private soot.SootMethod createSootConstructor(String name, PsiMethod psiMethod,
             List<Type> parameters, List<SootClass> exceptions) {
         
-        int modifier = Util.getModifier(flags);
+        int modifier = Util.getModifier(psiMethod);
 
         soot.SootMethod method = new soot.SootMethod(name, parameters,
                 soot.VoidType.v(), modifier, exceptions);

@@ -268,7 +268,7 @@ public abstract class JBB4 extends JBB3 {
      */
     protected boolean needsAccessor(PsiMember inst){
         SootMethod method = body.getMethod();
-        Type clsType = Util.getSootType(inst.getContainingClass());
+        Type clsType = Util.getSootType(initialResolver, inst.getContainingClass());
         if (inst.hasModifierProperty("private")) {
             if (!clsType.equals(method.getDeclaringClass().getType())){
                 return true;
@@ -375,7 +375,7 @@ public abstract class JBB4 extends JBB3 {
 
         soot.SootMethod toInvoke;
         soot.SootClass invokeClass;
-        SootClass parentClass = ((soot.RefType) Util.getSootType(
+        SootClass parentClass = ((soot.RefType) Util.getSootType(initialResolver,
                 field.getType())).getSootClass();
         PsiModifierList fieldMods = field.getModifierList();
         if (fieldMods.hasModifierProperty("private")){
@@ -972,7 +972,7 @@ public abstract class JBB4 extends JBB3 {
         }
 
         Value val = base().createExpr(operand);
-        soot.Type type = Util.getSootType(castExpr.getType());
+        soot.Type type = Util.getSootType(initialResolver, castExpr.getType());
 
         soot.jimple.CastExpr cast = soot.jimple.Jimple.v().newCastExpr(val, type);
         Util.addPsiTags(cast.getOpBox(), operand);
@@ -1009,13 +1009,13 @@ public abstract class JBB4 extends JBB3 {
         ArrayList<Value> sootParams = new ArrayList<Value>();
         ArrayList<Type> sootParamsTypes = new ArrayList<Type>();
 
-        PsiClass objType = (PsiClass) newExpr.getClassReference().resolve();
+        PsiClass objType;
 
         PsiAnonymousClass anonClass = newExpr.getAnonymousClass();
         if (anonClass != null){
             objType = anonClass;
             // add inner class tags for any anon classes created
-            String name = Util.getSootType(objType).toString();
+            String name = Util.getSootType(initialResolver, objType).toString();
             PsiClass outerType = (PsiClass) anonClass.getBaseClassReference().resolve();
             if (!initialResolver.hasClassInnerTag(body.getMethod().getDeclaringClass(), name)){
                 Util.addInnerClassTag(body.getMethod().getDeclaringClass(),
@@ -1026,14 +1026,16 @@ public abstract class JBB4 extends JBB3 {
             }
         }
         else {
+            objType = (PsiClass) newExpr.getClassReference().resolve();
+
             // not an anon class but actually invoking a new something
-            PsiClass outer = objType.getContainingClass();
+            PsiClass outer = Util.getOuterClass(objType);
             if (outer != null){
-                String name = Util.getSootType(objType).toString();
+                String name = Util.getSootType(initialResolver, objType).toString();
                 PsiClass outerType = outer;
                 if (!initialResolver.hasClassInnerTag(body.getMethod().getDeclaringClass(), name)){
                     Util.addInnerClassTag(body.getMethod().getDeclaringClass(),
-                            name, Util.getSootType(outerType).toString(),
+                            name, Util.getSootType(initialResolver, outerType).toString(),
                             objType.getName(),
                             outerType.isInterface()
                                     ? soot.Modifier.PUBLIC | soot.Modifier.STATIC
@@ -1041,7 +1043,8 @@ public abstract class JBB4 extends JBB3 {
                 }
             }
         }
-        soot.RefType sootType = (soot.RefType)Util.getSootType(objType);
+        soot.RefType sootType = (soot.RefType)Util.getSootType(initialResolver,
+                objType);
         soot.Local retLocal = lg.generateLocal(sootType);
         soot.jimple.NewExpr sootNew = soot.jimple.Jimple.v().newNewExpr(sootType);
 
@@ -1124,7 +1127,7 @@ public abstract class JBB4 extends JBB3 {
 
         soot.SootClass receiverTypeClass;
         Type sootRecType = null;
-        if (Util.getSootType(methodCls).equals(objRefType)){
+        if (Util.getSootType(initialResolver, methodCls).equals(objRefType)){
             sootRecType = objRefType;
             receiverTypeClass = soot.Scene.v().getSootClass("java.lang.Object");
         }
@@ -1132,11 +1135,11 @@ public abstract class JBB4 extends JBB3 {
             if (qualifier != null) {
                 PsiType recvType = qualifier.getType();
                 if (recvType != null) {
-                    sootRecType = Util.getSootType(recvType);
+                    sootRecType = Util.getSootType(initialResolver, recvType);
                 }
             }
             if (sootRecType == null){
-                sootRecType = Util.getSootType(methodCls);
+                sootRecType = Util.getSootType(initialResolver, methodCls);
             }
             if (sootRecType instanceof soot.RefType){
                 receiverTypeClass = ((soot.RefType)sootRecType).getSootClass();
@@ -1151,7 +1154,7 @@ public abstract class JBB4 extends JBB3 {
 
         boolean isPrivateAccess = false;
         if (needsAccessor(call)) {
-            soot.SootClass containingClass = ((soot.RefType)Util.getSootType(
+            soot.SootClass containingClass = ((soot.RefType)Util.getSootType(initialResolver,
                     methodCls)).getSootClass();
             soot.SootClass classToAddMethTo = containingClass;
 
@@ -1187,7 +1190,7 @@ public abstract class JBB4 extends JBB3 {
                 }
 
                 else if (body.getMethod().getDeclaringClass().declaresFieldByName("this$0")){
-                    sootParams.add(0, getThis(Util.getSootType(
+                    sootParams.add(0, getThis(Util.getSootType(initialResolver,
                             methodCls)));
                 }
                 else {
@@ -1268,7 +1271,7 @@ public abstract class JBB4 extends JBB3 {
      */
     private soot.Local getNewArrayLocal(PsiNewExpression newArrExpr) {
 
-        Type sootType = Util.getSootType(newArrExpr.getType());
+        Type sootType = Util.getSootType(initialResolver, newArrExpr.getType());
 
 //System.out.println("creating new array of type: "+sootType);
         PsiExpression[] dims = newArrExpr.getArrayDimensions();
@@ -1386,12 +1389,14 @@ public abstract class JBB4 extends JBB3 {
         List<Value> methodParams = new ArrayList<Value>();
         PsiSuperExpression qualifier = (PsiSuperExpression) expr.getQualifierExpression();
         PsiClass superQualifierCls = (PsiClass) qualifier.getQualifier().resolve();
-        classToInvoke = ((soot.RefType)Util.getSootType(superQualifierCls)).getSootClass();
+        classToInvoke = ((soot.RefType)Util.getSootType(initialResolver,
+                superQualifierCls)).getSootClass();
 
 // make an access method
         soot.SootMethod methToInvoke = makeSuperAccessMethodForField(classToInvoke, expr);
 // invoke it
-        soot.Local classToInvokeLocal = Util.getThis(classToInvoke.getType(),
+        soot.Local classToInvokeLocal = Util.getThis(initialResolver,
+                classToInvoke.getType(),
                 body, getThisMap, lg);
         methodParams.add(0, classToInvokeLocal);
 
@@ -1415,13 +1420,14 @@ public abstract class JBB4 extends JBB3 {
     private soot.Local getSpecialSuperQualifierLocalForMethod(PsiMethodCallExpression expr){
         soot.SootClass classToInvoke;
         List<Value> methodParams = new ArrayList<Value>();
-        classToInvoke = ((soot.RefType)Util.getSootType(
+        classToInvoke = ((soot.RefType)Util.getSootType(initialResolver,
                 expr.getMethodExpression().getType())).getSootClass();
         methodParams = getSootParams(expr);
 // make an access method
         soot.SootMethod methToInvoke = makeSuperAccessMethodForMethod(classToInvoke, expr);
 // invoke it
-        soot.Local classToInvokeLocal = Util.getThis(classToInvoke.getType(),
+        soot.Local classToInvokeLocal = Util.getThis(initialResolver,
+                classToInvoke.getType(),
                 body, getThisMap, lg);
         methodParams.add(0, classToInvokeLocal);
 
@@ -1448,7 +1454,7 @@ public abstract class JBB4 extends JBB3 {
         }
         else {
             //TODO: test qualified this
-            return getThis(Util.getSootType((PsiClass) qualifier.resolve()));
+            return getThis(Util.getSootType(initialResolver, (PsiClass) qualifier.resolve()));
         }
     }
 
@@ -1468,7 +1474,7 @@ public abstract class JBB4 extends JBB3 {
             // or calls because need to know field or method to access
             // as it access' a field or meth in the super class of the
             // outer class refered to by the qualifier
-            return getThis(Util.getSootType((PsiClass) qualifier.resolve()));
+            return getThis(Util.getSootType(initialResolver, (PsiClass) qualifier.resolve()));
         }
     }
 
@@ -1479,13 +1485,13 @@ public abstract class JBB4 extends JBB3 {
         paramTypes.add(classToInvoke.getType());
 
         soot.SootMethod meth;
-        meth = new soot.SootMethod(name, paramTypes, Util.getSootType(
+        meth = new soot.SootMethod(name, paramTypes, Util.getSootType(initialResolver,
                 memberToAccess.getType()), soot.Modifier.STATIC);
         PrivateFieldAccMethodSource fSrc = new PrivateFieldAccMethodSource(
-                Util.getSootType(memberToAccess.getType()),
+                Util.getSootType(initialResolver, memberToAccess.getType()),
                 memberToAccess.getReferenceName(),
                 ((PsiField) memberToAccess.resolve()).hasModifierProperty("static"),
-                ((soot.RefType) Util.getSootType(memberToAccess.getQualifierExpression()
+                ((soot.RefType) Util.getSootType(initialResolver, memberToAccess.getQualifierExpression()
                         .getType())).getSootClass()
         );
         classToInvoke.addMethod(meth);
@@ -1505,10 +1511,10 @@ public abstract class JBB4 extends JBB3 {
         PsiMethodCallExpression methToAccess = call;
         paramTypes.addAll(getSootParamsTypes(methToAccess));
         PsiMethod method = methToAccess.resolveMethod();
-        meth = new soot.SootMethod(name, paramTypes, Util.getSootType(
+        meth = new soot.SootMethod(name, paramTypes, Util.getSootType(initialResolver,
                 method.getReturnType()), soot.Modifier.STATIC);
         PrivateMethodAccMethodSource mSrc = new PrivateMethodAccMethodSource(
-                method);
+                initialResolver, method);
         src = mSrc;
         classToInvoke.addMethod(meth);
         meth.setActiveBody(src.getBody(meth, null));
@@ -1521,7 +1527,8 @@ public abstract class JBB4 extends JBB3 {
      */
     private soot.Local getInstanceOfLocal(PsiInstanceOfExpression instExpr) {
 
-        Type sootType = Util.getSootType(instExpr.getCheckType().getType());
+        Type sootType = Util.getSootType(initialResolver,
+                instExpr.getCheckType().getType());
 
         Value local = base().createExpr(instExpr.getOperand());
 

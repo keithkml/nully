@@ -70,8 +70,9 @@ public class PreparerForSoot {
 
     public void prepareForFileAnalysis(@NonNull PsiJavaFile jfile) {
         makeMarkedCopy(jfile);
-        stripErrors(jfile);
-        stripJava5Code(context.getCopiedElement(jfile));
+        PsiJavaFile fileCopy = context.getFileCopy();
+        stripErrors(fileCopy);
+        stripJava5Code(fileCopy);
     }
 
     private void stripErrors(@NonNull PsiJavaFile jfile) {

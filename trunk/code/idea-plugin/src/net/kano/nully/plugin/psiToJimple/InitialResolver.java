@@ -18,18 +18,19 @@
  */
 
 package net.kano.nully.plugin.psiToJimple;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiAnonymousClass;
 import com.intellij.psi.PsiClass;
+import com.intellij.psi.PsiClassInitializer;
 import com.intellij.psi.PsiExpression;
 import com.intellij.psi.PsiField;
+import com.intellij.psi.PsiJavaFile;
+import com.intellij.psi.PsiMember;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiMethodCallExpression;
 import com.intellij.psi.PsiNewExpression;
-import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiVariable;
-import com.intellij.psi.PsiMember;
-import com.intellij.psi.PsiClassInitializer;
-import com.intellij.openapi.vfs.VirtualFile;
+import net.kano.nully.annotations.NonNull;
 import soot.FastHierarchy;
 import soot.RefType;
 import soot.SootClass;
@@ -45,7 +46,7 @@ import java.util.Map;
 
 public class InitialResolver {
 
-    private PsiJavaFile astNode;  // source node
+    private PsiJavaFile jfile;  // source node
     private BiMap<PsiAnonymousClass,String> anonClassMap;   // maps New to SootClass (name)
     private Map<IdentityKey<PsiAnonymousClass>,String> anonTypeMap;    //maps psi types to soot types
     private BiMap<PsiClass,String> localClassMap;  // maps LocalClassDecl to SootClass (name)
@@ -101,14 +102,14 @@ public class InitialResolver {
      * on the soot class
      */
     public void setAst(PsiJavaFile ast) {
-        astNode = ast;
+        jfile = ast;
     }
 
     private void makeASTMap() {
         ClassDeclFinder finder = new ClassDeclFinder();
-        astNode.accept(finder);
+        jfile.accept(finder);
         for (PsiClass decl : finder.declsFound()) {
-            Type sootType = Util.getSootType(decl);
+            Type sootType = Util.getSootType(this, decl);
             if (decl.isInterface()) {
                 if (interfacesList == null) {
                     interfacesList = new ArrayList<String>();
@@ -127,12 +128,12 @@ public class InitialResolver {
         if (sootNameToAST == null){
             sootNameToAST = new HashMap<String, PsiJavaFile>();
         }
-        sootNameToAST.put(name, astNode);
+        sootNameToAST.put(name, jfile);
     }
 
     public void resolveAST(){
         buildInnerClassInfo();
-        createClassToSourceMap(astNode);
+        createClassToSourceMap(jfile);
     }
 
     // resolves all types and deals with .class literals and asserts
@@ -141,7 +142,7 @@ public class InitialResolver {
 
         // create class to source map first
         // create source file
-        cr.createSource(astNode);
+        cr.createSource(jfile);
 
         cr.addSourceFileTag(sc);
 
@@ -162,7 +163,7 @@ public class InitialResolver {
         }
 
         for (PsiClass cls : src.getClasses()) {
-            addToClassToSourceMap(Util.getSootType(cls).toString(), srcName);
+            addToClassToSourceMap(Util.getSootType(this, cls).toString(), srcName);
         }
     }
 
@@ -193,13 +194,13 @@ public class InitialResolver {
         }
         if (!anonClassMap.containsKey(nextNew)){
             int nextAvailNum = 1;
-            PsiClass outerToMatch = nextNew.getContainingClass();
+            PsiClass outerToMatch = Util.getOuterClass(nextNew);
             outerToMatch = getOutermostClass(outerToMatch);
 
             if (!anonTypeMap.isEmpty()){
                 for (IdentityKey<PsiAnonymousClass> identityKey : anonTypeMap.keySet()) {
                     PsiClass pType = identityKey.object();
-                    PsiClass outerMatch = pType.getContainingClass();
+                    PsiClass outerMatch = Util.getOuterClass(pType);
                     outerMatch = getOutermostClass(outerMatch);
                     if (outerMatch.equals(outerToMatch)) {
                         IdentityKey<PsiClass> key = new IdentityKey<PsiClass>(pType);
@@ -211,7 +212,8 @@ public class InitialResolver {
                 }
             }
 
-            String realName = outerToMatch.getQualifiedName()+"$"+nextAvailNum;
+            String realName = Util.getJavaClassName(this,
+                    outerToMatch) +"$"+nextAvailNum;
             anonClassMap.put(nextNew, realName);
             anonTypeMap.put(new IdentityKey<PsiAnonymousClass>(nextNew), realName);
             addNameToAST(realName);
@@ -219,9 +221,9 @@ public class InitialResolver {
         }
     }
 
-    private PsiClass getOutermostClass(PsiClass outerMatch) {
-        while (outerMatch.getContainingClass() != null) {
-            outerMatch = outerMatch.getContainingClass();
+    private PsiClass getOutermostClass(@NonNull PsiClass outerMatch) {
+        while (Util.getOuterClass(outerMatch) != null) {
+            outerMatch = Util.getOuterClass(outerMatch);
         }
         return outerMatch;
     }
@@ -237,13 +239,14 @@ public class InitialResolver {
 
         if (!localClassMap.containsKey(lcd)){
             int nextAvailNum = 1;
-            PsiClass outerToMatch = lcd.getContainingClass();
+            //TODO: fix local classes
+            PsiClass outerToMatch = Util.getOuterClass(lcd);
             outerToMatch = getOutermostClass(outerToMatch);
 
             if (!localTypeMap.isEmpty()){
                 for (IdentityKey<PsiClass> identityKey : localTypeMap.keySet()) {
                     PsiClass pType = (identityKey).object();
-                    PsiClass outerMatch = pType.getContainingClass();
+                    PsiClass outerMatch = Util.getOuterClass(pType);
                     outerMatch = getOutermostClass(outerMatch);
                     if (outerMatch.equals(outerToMatch)) {
                         String realName = localTypeMap.get(new IdentityKey<PsiClass>(pType));
@@ -255,7 +258,8 @@ public class InitialResolver {
                 }
             }
 
-            String realName = outerToMatch.getQualifiedName()+"$"+nextAvailNum+lcd.getName();
+            String realName = Util.getJavaClassName(this,
+                    outerToMatch) +"$"+nextAvailNum+lcd.getName();
             localClassMap.put(lcd, realName);
             localTypeMap.put(new IdentityKey<PsiClass>(lcd), realName);
             addNameToAST(realName);
@@ -316,7 +320,7 @@ public class InitialResolver {
 
     private void buildInnerClassInfo(){
         InnerClassInfoFinder icif = new InnerClassInfoFinder();
-        astNode.accept(icif);
+        jfile.accept(icif);
         createLocalAndAnonClassNames(icif.anonBodyList(), icif.localClassDeclList());
         buildFinalLocalMap(icif.memberList());
     }
@@ -337,7 +341,7 @@ public class InitialResolver {
     }
 
     public void clearAsts() {
-        astNode = null;
+        jfile = null;
         if (sootNameToAST != null) sootNameToAST.clear();
     }
 
@@ -471,21 +475,21 @@ public class InitialResolver {
     public void hierarchy(soot.FastHierarchy fh){
         hierarchy = fh;
     }
-    
+
     public soot.FastHierarchy hierarchy(){
         return hierarchy;
     }
 
     private Map<SootClass,InnerClassInfo> innerClassInfoMap;
-   
+
     public Map<SootClass,InnerClassInfo> getInnerClassInfoMap(){
         return innerClassInfoMap;
     }
- 
+
     public void setInnerClassInfoMap(HashMap<SootClass,InnerClassInfo> map){
         innerClassInfoMap = map;
     }
- 
+
     protected Map<String,String> classToSourceMap(){
         return classToSourceMap;
     }
@@ -496,35 +500,35 @@ public class InitialResolver {
         }
         privateFieldGetAccessMap.put(new IdentityKey<PsiField>(field), meth);
     }
-    
+
     public Map<IdentityKey<PsiField>,SootMethod> getPrivateFieldGetAccessMap(){
         return privateFieldGetAccessMap;
     }
-    
+
     public void addToPrivateFieldSetAccessMap(PsiField field, soot.SootMethod meth){
         if (privateFieldSetAccessMap == null){
             privateFieldSetAccessMap = new HashMap<IdentityKey<PsiField>, SootMethod>();
         }
         privateFieldSetAccessMap.put(new IdentityKey<PsiField>(field), meth);
     }
-    
+
     public Map<IdentityKey<PsiField>,SootMethod> getPrivateFieldSetAccessMap(){
         return privateFieldSetAccessMap;
     }
-    
+
     public void addToPrivateMethodGetAccessMap(PsiMethodCallExpression call, soot.SootMethod meth){
         if (privateMethodGetAccessMap == null){
             privateMethodGetAccessMap = new HashMap<IdentityKey<PsiMethod>, SootMethod>();
         }
         privateMethodGetAccessMap.put(new IdentityKey<PsiMethod>(call.resolveMethod()), meth);
     }
-    
+
     public Map<IdentityKey<PsiMethod>,SootMethod> getPrivateMethodGetAccessMap(){
         return privateMethodGetAccessMap;
     }
 
     public List<String> getInterfacesList() {
         return interfacesList;
-    } 
+    }
 }
 
