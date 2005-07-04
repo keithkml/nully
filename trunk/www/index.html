@@ -1,95 +1,95 @@
-<!DOCTYPE html
-     PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
-     "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html>
 <head>
-<title>Home</title>
+  <title>Home</title>
+
+
   <style type="text/css">
 .nully-comment {
-  font-style: italic;
+font-style: italic;
 }
-
 .nully-correct {
 color: darkgreen;
 }
-
 .nully-incorrect {
 color: darkred;
 }
-
 .nully-error {
 /*color: red;*/
 border-bottom: 2px dotted #fc0;
 }
-
 .nully-anno {
 font-weight: bold;
 color: #506;
 }
-
 code, pre {
-  font-family: monospace;
+font-family: monospace;
 }
-
 pre.nully-code {
-  font-size: 8.5pt;
-
-  margin-left: 3em;
-  margin-right: 3em;
-  padding: 1em;
-
-  background-color: #ffd;
-
-  border: 1px solid black;
-  border-width: 1px 2px 2px 1px;
+font-size: 8.5pt;
+margin-left: 3em;
+margin-right: 3em;
+padding: 1em;
+background-color: #ffd;
+border: 1px solid black;
+border-width: 1px 2px 2px 1px;
 }
   </style>
 </head>
+
+
 <body>
+
 <h4>Introduction</h4>
+
 <p>Nully
 is a tool which provides automated edit-time, compile-time, and
 run-time checks for <span style="font-style: italic;">illegal</span>
 null
 values, utilizing Java 5.0 code annotations.</p>
 
-<p style="text-align: center;"><img alt="" src="images/demo.png"
- style="width: 518px; height: 123px;"></p>
+<p style="text-align: center;"><img alt="" src="images/demo.png" style="width: 518px; height: 123px;" /></p>
 
 <p>Nully has four main goals:</p>
+
 <ul>
+
   <li><strong>Ease
 of use.</strong> Specifying where
 nulls are not allowed is as simple as typing <code>@NonNull</code>
 before the variable or method you want to protect.</li>
+
   <li><strong>Security.</strong>
 Null values are prevented at run-time using generated null checks in
 your compiled code. Your code can safely assume that any values marked
 as <code>@NonNull</code>
 will not be <code>null</code>,
 including local variables, parameters, and returned values from <code>@NonNull</code>
-methods.
-  </li>
+methods. </li>
+
   <li><strong>Documentation.</strong>
 Users of your classes know immediately where null values are and are
 not allowed, just by looking at the method signature or Javadoc.</li>
+
   <li><strong>Comprehension.</strong>
 In-editor illegal null highlighting and compile-time warnings make sure
-you understand what your code is doing.
-  </li>
+you understand what your code is doing. </li>
+
 </ul>
+
 <h4>Usage
 </h4>
+
 <p>
 Nully provides an annotation called <code>@NonNull</code>
 which can be applied to method parameters, variables, and return
 values, as in the following example:
 </p>
-<pre class="nully-code"><span class="nully-anno">@NonNull</span> String someMethod(<span class="nully-anno">@NonNull</span> String param) {
-  <span class="nully-anno">@NonNull</span> String other = "";
-  return other;
-}</pre>
+
+<pre class="nully-code"><span class="nully-anno">@NonNull</span> String someMethod(<span class="nully-anno">@NonNull</span> String param) {<br /> <span class="nully-anno">@NonNull</span> String other = "";<br /> return other;<br />}</pre>
+
 <ul>
+
   <li><strong>Method
 parameters.</strong> A <code>@NonNull</code>
 parameter cannot be passed <code>null</code>.
@@ -98,28 +98,10 @@ An exception will be thrown at runtime if a method passes your method a
 for a <code>@NonNull</code>
 parameter, and a warning will be shown if you try to pass <code>null</code>
 to such a parameter.
-    <pre class="nully-code">void takeString(<span class="nully-anno">@NonNull</span> String value) {
-  <span
- class="nully-comment">// code can assume value is not null</span>
-}
+    <pre class="nully-code">void takeString(<span class="nully-anno">@NonNull</span> String value) {<br /> <span class="nully-comment">// code can assume value is not null</span><br />}<br />void myMethod() {<br /><span class="nully-comment nully-correct">// CORRECT</span><br />takeString("hi");<br /><span class="nully-comment nully-correct">// CORRECT</span><br />StringBuffer buf = ...;<br />takeString(new String(buf));<br /><span class="nully-comment nully-incorrect">// INCORRECT - getProperty may return null</span><br />String str = System.getProperty("someProp");<br />takeString(<span class="nully-error" title="Value passed to takeString() may be null">str</span>);<br />}</pre>
 
-void myMethod() {
-  <span
- class="nully-comment nully-correct">// CORRECT</span>
-  takeString("hi");
-
-  <span
- class="nully-comment nully-correct">// CORRECT</span>
-  StringBuffer buf = ...;
-  takeString(new String(buf));
-
-  <span
- class="nully-comment nully-incorrect">// INCORRECT - getProperty may return null</span>
-  String str = System.getProperty("someProp");
-  takeString(<span
- class="nully-error" title="Value passed to takeString() may be null">str</span>);
-}</pre>
   </li>
+
   <li><strong>Local
 variables.</strong> You cannot
 assign a <code>null</code>
@@ -127,23 +109,10 @@ value to a <code>@NonNull</code>
 variable. Any attempt to store a (possibly)
 null value will produce a warning at edit- and compile-time, and will
 throw an exception at runtime.
-    <pre class="nully-code">List someListMethod() { return ...; }
+    <pre class="nully-code">List someListMethod() { return ...; }<br /><br />void method() {<br /> <span class="nully-anno">@NonNull</span> List s;<br /> // CORRECT<br /> s = new ArrayList();<br /><br /> // CORRECT<br /> List other = new ArrayList();<br /> s = other;<br /><br /> // INCORRECT<br /> s = <span class="nully-error" title="Value assigned to s may be null">someListMethod()</span>;<br />}<br /></pre>
 
-void method() {
-  <span class="nully-anno">@NonNull</span> List s;
-  // CORRECT
-  s = new ArrayList();
-
-  // CORRECT
-  List other = new ArrayList();
-  s = other;
-
-  // INCORRECT
-  s = <span
- class="nully-error" title="Value assigned to s may be null">someListMethod()</span>;
-}
-</pre>
   </li>
+
   <li><strong>Method
 return values. </strong>
 When <code>@NonNull</code>
@@ -153,56 +122,31 @@ compile-time, and will throw an exception at runtime. Values returned
 from <code>@NonNull</code>
 methods are guaranteed to be non-null due to generated run-time checks
 in your code.
-    <pre class="nully-code"><span class="nully-anno">@NonNull</span> Object something() {
-  <span
- class="nully-comment nully-correct">// CORRECT</span>
-  return "Constant";
+    <pre class="nully-code"><span class="nully-anno">@NonNull</span> Object something() {<br /> <span class="nully-comment nully-correct">// CORRECT</span><br />return "Constant";<br /><span class="nully-comment nully-correct">// CORRECT</span><br />return new ArrayList();<br /><span class="nully-comment nully-incorrect">// INCORRECT - getProperty may return null</span><br />return <span class="nully-error" title="Returned value may be null">System.getProperty("someProp")</span>;<br /><br /> <span class="nully-comment nully-incorrect" title="Returned value may be null">// INCORRECT - value may be null</span><br />String value = null;<br />if (something) value = "hello";<br />return <span class="nully-error" title="Returned value may be null">value</span>;<br />}<br /><br />void somethingUser() {<br /> <span class="nully-comment nully-correct">// CORRECT - something() guaranteed not to return null</span><br /><span class="nully-anno">@NonNull</span> Object thing = something();<br />}</pre>
 
-  <span
- class="nully-comment nully-correct">// CORRECT</span>
-  return new ArrayList();
-
-  <span
- class="nully-comment nully-incorrect">// INCORRECT - getProperty may return null</span>
-  return <span
- class="nully-error" title="Returned value may be null">System.getProperty("someProp")</span>;
-
-  <span
- class="nully-comment nully-incorrect"
- title="Returned value may be null">// INCORRECT - value may be null</span>
-  String value = null;
-  if (something) value = "hello";
-  return <span
- class="nully-error"
- title="Returned value may be null">value</span>;
-}
-
-void somethingUser() {
-  <span
- class="nully-comment nully-correct">// CORRECT - something() guaranteed not to return null</span>
-  <span class="nully-anno">@NonNull</span> Object thing = something();
-}</pre>
   </li>
+
 </ul>
 
-<h4>Installation</h4>
+<h4>Details</h4>
+
 <p>Nully is implemented as a
 plugin for the IntelliJ IDEA development
 environment for Java. It cannot currently be used in any way outside
 IDEA because of its heavy dependence on IDEA's Java source tree
 framework.</p>
 
-<p>To install Nully, simply open
-IntelliJ IDEA and open
-File&rarr;Settings. Click Plugins, then click Available. Find Nully
-in the available plugins list and click the Install button in the
-toolbar to install Nully.</p>
+<h4>Status</h4>
+
+<p>Nully is currently in development and is not available for public
+release yet. You are free to check the project out of the CVS
+repository to try it. A release is planned by the end of Summer 2005.</p>
 
 <p>To use Nully annotations in
 your project, you must include a small JAR
-file in your application. This file will be released soon in the <a
- href="https://nully.dev.java.net/servlets/ProjectDocumentList?folderID=3225&amp;expandFolder=3225&amp;folderID=3225">Current
+file in your application. This file will be released soon in the <a href="https://nully.dev.java.net/servlets/ProjectDocumentList?folderID=3225&amp;expandFolder=3225&amp;folderID=3225">Current
 Release section</a> of this
 project's file releases.</p>
+
 </body>
 </html>
